@@ -23,7 +23,8 @@ class SafetyAlertCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             result = await client.async_get_safety_alerts(self._area_code)
             alerts = result.get("disasterSmsList", [])
-            count = result.get("rtnResult", {}).get("totCnt", 0)
+            rtn = result.get("rtnResult", {})
+            count = rtn.get("totCnt", len(alerts)) if isinstance(rtn, dict) else len(alerts)
             return {"alerts": alerts, "count": count, "has_data": len(alerts) > 0}
         except Exception as e:
             raise UpdateFailed(f"Safety alert error: {e}") from e

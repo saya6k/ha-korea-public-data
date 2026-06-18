@@ -7,6 +7,14 @@ from .exceptions import KepcoAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
+_LOGIN_OK_URL_MARKERS = ("confirmInfo.do",)
+_LOGIN_FAIL_BODY_MARKERS = (
+    "비밀번호가 일치하지 않습니다",
+    "존재하지 않는 아이디",
+    "로그인에 실패",
+    "아이디 또는 비밀번호",
+)
+
 
 def _get_rsa_key():
     """Lazy import RSAKey to avoid triggering utils import chain."""
@@ -70,8 +78,16 @@ class KepcoApiClient:
                 "https://pp.kepco.co.kr:8030/login",
                 data={"USER_ID": user_id, "USER_PW": user_pw},
                 headers=headers, allow_redirects=True)
-            if response.status_code == 200 and "confirmInfo.do" in str(response.url):
+            if response.status_code != 200:
+                _LOGGER.warning("KEPCO login returned HTTP %s", response.status_code)
+                return False
+            body = response.text or ""
+            if any(marker in body for marker in _LOGIN_FAIL_BODY_MARKERS):
+                _LOGGER.debug("KEPCO login failed (body marker matched)")
+                return False
+            if any(marker in str(response.url) for marker in _LOGIN_OK_URL_MARKERS):
                 return True
+            _LOGGER.warning("Unknown KEPCO login response: %s", body[:200])
             return False
         except Exception as e:
             _LOGGER.error("Login failed: %s", e)
@@ -83,8 +99,11 @@ class KepcoApiClient:
             return json.loads(response.text)
         except Exception:
             if await self.async_login(self._username, self._password):
-                response = await self._session.request(method, url, **kwargs)
-                return json.loads(response.text)
+                try:
+                    response = await self._session.request(method, url, **kwargs)
+                    return json.loads(response.text)
+                except Exception as retry_err:
+                    _LOGGER.debug("KEPCO retry failed: %s", retry_err)
             raise
 
     async def async_get_recent_usage(self):

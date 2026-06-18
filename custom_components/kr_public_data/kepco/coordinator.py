@@ -47,6 +47,6 @@ class KepcoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     recent = await self._client.async_get_recent_usage()
                     usage = await self._client.async_get_usage_info()
                     return {"recent_usage": recent, "usage_info": usage}
-            except Exception:
-                pass
+            except Exception as retry_err:
+                _LOGGER.debug("KEPCO retry failed: %s", retry_err)
             raise UpdateFailed(f"KEPCO error: {e}") from e

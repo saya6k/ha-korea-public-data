@@ -23,6 +23,7 @@ class AirKoreaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self):
         result = {"stations": {}, "forecast": [], "uv": {}, "stagnation": {}}
+        station_failures = 0
         async with aiohttp.ClientSession() as session:
             for st in self._stations:
                 name = st["stationName"]
@@ -30,6 +31,7 @@ class AirKoreaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     result["stations"][name] = await fetch_realtime(
                         session, self._api_key, name)
                 except Exception as e:
+                    station_failures += 1
                     _LOGGER.warning("AirKorea realtime %s: %s", name, e)
             try:
                 result["forecast"] = await fetch_forecast(session, self._api_key)
@@ -39,11 +41,14 @@ class AirKoreaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 result["uv"] = await fetch_uv_index(
                     session, self._living_key, self._area_code)
-            except Exception:
-                pass
+            except Exception as e:
+                _LOGGER.debug("AirKorea UV index failed: %s", e)
             try:
                 result["stagnation"] = await fetch_air_stagnation(
                     session, self._living_key, self._area_code)
-            except Exception:
-                pass
+            except Exception as e:
+                _LOGGER.debug("AirKorea stagnation failed: %s", e)
+        # If every station failed and forecast is empty, surface the failure
+        if self._stations and station_failures == len(self._stations) and not result["forecast"]:
+            raise UpdateFailed("AirKorea: all station and forecast fetches failed")
         return result
