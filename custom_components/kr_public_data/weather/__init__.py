@@ -56,4 +56,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     store = hass.data[DOMAIN][entry.entry_id]
     from ..kma_weather.weather import KMAWeather
     c = store["coordinator"]
-    async_add_entities([KMAWeather(c, r["name"]) for r in store.get("regions", [])])
+    region_subs = store.get("region_subs") or {}
+    for sub_id, r in region_subs.items():
+        async_add_entities([KMAWeather(c, r["name"])],
+                           config_subentry_id=sub_id)
+    if not region_subs:
+        async_add_entities([KMAWeather(c, r["name"])
+                            for r in store.get("regions", [])])
