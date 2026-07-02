@@ -1,4 +1,10 @@
 {
+  "issues": {
+    "quota_exceeded": {
+      "title": "Daily API quota exceeded",
+      "description": "The daily request quota for `{name}` has been exhausted. Polling is paused until midnight (KST) and the last known data is served in the meantime. Consider requesting a higher quota on data.go.kr or adding a second service key."
+    }
+  },
   "config": {
     "step": {
       "user": {
@@ -186,6 +192,23 @@
           "regions": "Districts",
           "air_station": "Air Station (O₃/UV)"
         }
+      },
+      "reauth_kepco": {
+        "title": "KEPCO re-authentication",
+        "description": "KEPCO rejected the stored credentials. Enter them again.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_gasapp": {
+        "title": "GasApp re-authentication",
+        "description": "The GasApp token was rejected. Capture a fresh token from the app and enter it again.",
+        "data": {
+          "token": "Token",
+          "member_id": "ID",
+          "contract_num": "Contract"
+        }
       }
     },
     "error": {
@@ -198,7 +221,9 @@
     },
     "abort": {
       "already_configured": "Already configured.",
-      "no_options": "No options available."
+      "no_options": "No options available.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reauth_not_supported": "This entry type does not support re-authentication."
     }
   },
   "options": {

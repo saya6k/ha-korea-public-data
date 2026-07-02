@@ -22,6 +22,13 @@ PLATFORM_MAP = {
     ENTRY_EARTHQUAKE: [Platform.EVENT],
 }
 
+# Globally registered actions, removed when the last entry of the type unloads.
+SERVICES_BY_ETYPE = {
+    ENTRY_TRANSIT: ["search_location", "search_transit_path"],
+    ENTRY_PHARMACY: ["search_pharmacy"],
+    ENTRY_AIRKOREA: ["get_living_index_forecast"],
+}
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     etype = entry.data[CONF_ENTRY_TYPE]
@@ -43,16 +50,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         sg: dict[str, list] = {}
         for item in entry.data.get("subway_items", []):
             sg.setdefault(item["station"], []).append(item)
-        sc = {}
-        for station, subs in sg.items():
-            c = SubwayCoordinator(hass, seoul_key, station, subs)
-            await c.async_config_entry_first_refresh()
-            sc[station] = c
-        bus_coords = {}
-        for stop in entry.data.get("bus_stops", []):
-            bc = BusCoordinator(hass, stop["stop_id"], stop["stop_name"])
-            await bc.async_config_entry_first_refresh()
-            bus_coords[stop["stop_id"]] = bc
+        from .resilience import async_first_refresh_all
+        sc = {station: SubwayCoordinator(hass, seoul_key, station, subs)
+              for station, subs in sg.items()}
+        bus_coords = {stop["stop_id"]: BusCoordinator(hass, stop["stop_id"], stop["stop_name"])
+                      for stop in entry.data.get("bus_stops", [])}
+        await async_first_refresh_all([*sc.values(), *bus_coords.values()], "transit")
         store = {"subway_coords": sc, "bus_coords": bus_coords,
                  "subway_items": entry.data.get("subway_items", []),
                  "bus_stops": entry.data.get("bus_stops", [])}
@@ -88,19 +91,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         regions = entry.data.get("regions", [])
         if not regions and entry.data.get("area_code"):
             regions = [{"code": entry.data["area_code"], "name": entry.data.get("area_name", "")}]
-        coordinators = {}
-        for region in regions:
-            c = SafetyAlertCoordinator(hass, region["code"])
-            await c.async_config_entry_first_refresh()
-            coordinators[region["code"]] = c
+        from .resilience import async_first_refresh_all
+        coordinators = {region["code"]: SafetyAlertCoordinator(hass, region["code"])
+                        for region in regions}
+        await async_first_refresh_all(list(coordinators.values()), "safety_alert")
         store = {"coordinators": coordinators, "regions": regions}
 
     elif etype == ENTRY_KEPCO:
+        from homeassistant.exceptions import ConfigEntryAuthFailed
         from .kepco.coordinator import KepcoCoordinator
+        from .kepco.exceptions import KepcoAuthError
         c = KepcoCoordinator(hass, entry.data["username"], entry.data["password"])
         try:
             await c.async_login()
+        except KepcoAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
         except Exception:
+            # Network flakiness must not block the entry: it loads with stale
+            # data and the coordinator retries on schedule.
             pass
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c}
@@ -179,4 +187,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async_cleanup_llm_api(store.get("unregister_llm"))
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORM_MAP.get(etype, [])):
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        _async_remove_orphan_services(hass, entry, etype)
     return unload_ok
+
+
+def _async_remove_orphan_services(hass: HomeAssistant, entry: ConfigEntry, etype: str) -> None:
+    """Remove global actions once no loaded entry of this type remains."""
+    from homeassistant.config_entries import ConfigEntryState
+    names = SERVICES_BY_ETYPE.get(etype)
+    if not names:
+        return
+    for other in hass.config_entries.async_entries(DOMAIN):
+        if (other.entry_id != entry.entry_id
+                and other.data.get(CONF_ENTRY_TYPE) == etype
+                and other.state is ConfigEntryState.LOADED):
+            return
+    for name in names:
+        if hass.services.has_service(DOMAIN, name):
+            hass.services.async_remove(DOMAIN, name)
