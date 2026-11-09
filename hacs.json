@@ -2,6 +2,7 @@
   "name": "Korean Public Data",
   "render_readme": true,
   "homeassistant": "2026.11.0b0",
+  "country": ["KR"],
   "zip_release": true,
   "filename": "kr_public_data.zip"
 }
