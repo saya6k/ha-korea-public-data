@@ -42,7 +42,7 @@ def subway_station_device_id(hass: HomeAssistant, entry: ConfigEntry, sub_id: st
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         config_subentry_id=sub_id,
-        **subway_station_device(station),
+        **subway_station_device(station).as_dict(),
     ).id
 
 
