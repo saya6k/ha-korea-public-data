@@ -33,7 +33,7 @@ def pharmacy_region_device_id(hass: HomeAssistant, entry: ConfigEntry,
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         config_subentry_id=sub_id,
-        **pharmacy_region_device(q0, q1),
+        **pharmacy_region_device(q0, q1).as_dict(),
     ).id
 
 

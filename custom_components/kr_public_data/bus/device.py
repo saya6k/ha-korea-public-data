@@ -50,7 +50,7 @@ def bus_stop_device_id(hass: HomeAssistant, entry: ConfigEntry, sub_id: str | No
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         config_subentry_id=sub_id,
-        **bus_stop_device(info),
+        **bus_stop_device(info).as_dict(),
     ).id
 
 
@@ -87,7 +87,7 @@ def intercity_bus_section_device_id(hass: HomeAssistant, entry: ConfigEntry,
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         config_subentry_id=sub_id,
-        **intercity_bus_section_device(dep_name, arr_name),
+        **intercity_bus_section_device(dep_name, arr_name).as_dict(),
     ).id
 
 
