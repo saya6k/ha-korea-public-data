@@ -5,19 +5,18 @@ import contextlib
 import logging
 from datetime import date, datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.kr_public_data.const import DOMAIN
 from custom_components.kr_public_data.resilience import ResilientCoordinator
+from custom_components.kr_public_data.utils import KST
 
 from .api import NeisApiClient
 from .parser import parse_lunch_menu, parse_school_calendar, parse_timetable
 
 _LOGGER = logging.getLogger(__name__)
-KST = ZoneInfo("Asia/Seoul")
 
 def _school_year_mondays(ref: date | None = None) -> list[date]:
     ref = ref or datetime.now(KST).date()

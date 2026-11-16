@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 
 from custom_components.kr_public_data.const import ENTRY_KMA_WEATHER
+from custom_components.kr_public_data.utils import KST
 
 from .base_tool import BaseKRTool
 
@@ -159,7 +160,7 @@ class GetKMAWeatherForecastTool(BaseKRTool):
         hourly = region_data.get("hourly_forecasts") or []
         daily = region_data.get("daily_forecasts") or []
 
-        today = datetime.now().date()
+        today = datetime.now(KST).date()
         target_date = _resolve_target_date(range_value, today)
 
         if range_value == "week":

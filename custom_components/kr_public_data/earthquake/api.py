@@ -5,11 +5,13 @@ import json
 import logging
 import math
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
 
 from custom_components.kr_public_data.exceptions import raise_for_result_code
+from custom_components.kr_public_data.utils import KST
 
 from . import EQ_URL
 
@@ -19,8 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 async def fetch_earthquakes(
     session: aiohttp.ClientSession, api_key: str, count: int = 20
 ) -> list[dict]:
-    from datetime import datetime, timedelta
-    end = datetime.now()
+    end = datetime.now(KST)
     start = end - timedelta(days=30)
     params = {"serviceKey": api_key, "numOfRows": str(count), "pageNo": "1",
               "dataType": "JSON",

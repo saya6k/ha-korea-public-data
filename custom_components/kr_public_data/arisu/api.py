@@ -10,6 +10,8 @@ from typing import Any
 import aiohttp
 from bs4 import BeautifulSoup
 
+from custom_components.kr_public_data.utils import KST
+
 from .exceptions import ArisuConnectionError, ArisuDataError
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class ArisuApiClient:
         self, customer_number: str, customer_name: str
     ) -> dict[str, Any]:
         """Get water bill information from Arisu for current and previous month."""
-        current_date = datetime.now()
+        current_date = datetime.now(KST)
         current_month = current_date.strftime("%Y-%m")
 
         # 지난달 계산

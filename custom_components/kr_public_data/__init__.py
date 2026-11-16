@@ -4,6 +4,8 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_ENTRY_TYPE,
@@ -24,6 +26,7 @@ from .const import (
     ENTRY_WEATHER,
 )
 from .llm_api import async_register_llm_api
+from .services import async_setup_services
 
 PLATFORM_MAP = {
     ENTRY_WEATHER: [Platform.EVENT, Platform.CALENDAR, Platform.BINARY_SENSOR],
@@ -42,11 +45,13 @@ PLATFORM_MAP = {
     ENTRY_BUS: [Platform.SENSOR, Platform.BINARY_SENSOR],
 }
 
-# Globally registered actions, removed when the last entry of the type unloads.
-SERVICES_BY_ETYPE = {
-    ENTRY_PHARMACY: ["search_pharmacy", "list_nearby_pharmacies"],
-    ENTRY_AIRKOREA: ["get_living_index_forecast"],
-}
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async_setup_services(hass)
+    return True
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
@@ -193,7 +198,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     elif etype == ENTRY_PHARMACY:
         from .pharmacy.cleanup import async_cleanup_stale_pharmacy_entities
         from .pharmacy.coordinator import PharmacyCoordinator
-        from .pharmacy.services import async_register_pharmacy_service
         from .resilience import async_first_refresh_all
         api_key = entry.data["api_key"]
         # 지역은 entry.data["regions"]에 flat하게 저장 (subentry 없이 관리).
@@ -211,7 +215,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await async_first_refresh_all(list(coords.values()), "pharmacy")
         store = {"coordinators": coords, "coordinator": next(iter(coords.values())),
                  "regions": regions}
-        async_register_pharmacy_service(hass, api_key)
         async_cleanup_stale_pharmacy_entities(hass, entry, regions, coords)
 
     elif etype == ENTRY_AIRKOREA:
@@ -228,8 +231,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c, "stations": stations,
                  "station_subs": station_subs}
-        from .airkorea.services import async_register_airkorea_services
-        async_register_airkorea_services(hass, api_key, living_key, sido)
 
     elif etype == ENTRY_KMA_WEATHER:
         from .airkorea import SIDO_AREA_CODE
@@ -336,21 +337,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry, PLATFORM_MAP.get(etype, []))
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        _async_remove_orphan_services(hass, entry, etype)
     return unload_ok
 
-
-def _async_remove_orphan_services(hass: HomeAssistant, entry: ConfigEntry, etype: str) -> None:
-    """Remove global actions once no loaded entry of this type remains."""
-    from homeassistant.config_entries import ConfigEntryState
-    names = SERVICES_BY_ETYPE.get(etype)
-    if not names:
-        return
-    for other in hass.config_entries.async_entries(DOMAIN):
-        if (other.entry_id != entry.entry_id
-                and other.data.get(CONF_ENTRY_TYPE) == etype
-                and other.state is ConfigEntryState.LOADED):
-            return
-    for name in names:
-        if hass.services.has_service(DOMAIN, name):
-            hass.services.async_remove(DOMAIN, name)

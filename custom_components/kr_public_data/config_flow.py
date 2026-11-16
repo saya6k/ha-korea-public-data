@@ -275,7 +275,8 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 areas = [areas]
             if not areas:
                 errors["area_codes"] = "no_selection"
-            elif await validate_kma_api(api_key, areas[0]):
+            elif await validate_kma_api(
+                    async_get_clientsession(self.hass), api_key, areas[0]):
                 return self.async_create_entry(
                     title="기상특보",
                     data={CONF_ENTRY_TYPE: ENTRY_WEATHER, "api_key": api_key},
@@ -306,7 +307,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             seoul_key = user_input["seoul_api_key"]
-            if await validate_seoul_api(seoul_key):
+            if await validate_seoul_api(async_get_clientsession(self.hass), seoul_key):
                 self._data = {
                     CONF_ENTRY_TYPE: ENTRY_TRANSIT,
                     "seoul_api_key": seoul_key,
@@ -508,7 +509,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 fuels = [fuels]
             if not sidos or not fuels:
                 errors["base"] = "no_selection"
-            elif await validate_opinet(api_key):
+            elif await validate_opinet(async_get_clientsession(self.hass), api_key):
                 # 지역(시도)마다 subentry, 유종은 그 안에서 multi-select로 관리.
                 return self.async_create_entry(
                     title="유가정보",

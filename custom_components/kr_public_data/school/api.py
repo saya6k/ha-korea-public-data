@@ -5,16 +5,15 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from aiohttp import ClientSession
 
 from custom_components.kr_public_data.exceptions import KrQuotaError
+from custom_components.kr_public_data.utils import KST
 
 from . import ENDPOINTS, NEIS_BASE
 
 _LOGGER = logging.getLogger(__name__)
-KST = ZoneInfo("Asia/Seoul")
 
 def _ay() -> int:
     now = datetime.now(KST)

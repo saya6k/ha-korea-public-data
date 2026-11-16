@@ -2,12 +2,10 @@
 import re
 from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
+
+from custom_components.kr_public_data.utils import KST
 
 from . import ALLERGY_MAP
-
-# 한국 표준시 (KST)
-KST = ZoneInfo("Asia/Seoul")
 
 ALLERGY_REGEX = re.compile(r"\(([\d.,\s]+)\)")
 

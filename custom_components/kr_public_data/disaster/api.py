@@ -17,7 +17,7 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from curl_cffi import requests as cffi_requests
+from custom_components.kr_public_data.utils import async_import_curl_cffi
 
 _LOGGER = logging.getLogger(__name__)
 DISASTER_URL = "https://www.safetydata.go.kr/V2/api/DSSP-IF-00247"
@@ -82,6 +82,7 @@ def _parse_payload(text: str) -> list[dict[str, Any]]:
 
 
 async def _fetch_with_profile(profile: str, params: dict[str, str]) -> str:
+    cffi_requests = await async_import_curl_cffi()
     async with cffi_requests.AsyncSession(impersonate=profile) as s:
         r = await s.get(
             DISASTER_URL,

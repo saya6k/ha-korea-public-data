@@ -46,10 +46,9 @@ async def fetch_pharmacies(session: aiohttp.ClientSession, api_key: str, q0: str
         })
     return results
 
-async def validate_pharmacy_api(api_key: str) -> bool:
+async def validate_pharmacy_api(session: aiohttp.ClientSession, api_key: str) -> bool:
     try:
-        async with aiohttp.ClientSession() as s:
-            r = await fetch_pharmacies(s, api_key, "서울특별시", num=1)
-            return len(r) > 0
+        r = await fetch_pharmacies(session, api_key, "서울특별시", num=1)
+        return len(r) > 0
     except Exception:
         return False

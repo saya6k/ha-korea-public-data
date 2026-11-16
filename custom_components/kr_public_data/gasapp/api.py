@@ -6,7 +6,7 @@ from typing import Any
 
 import aiohttp
 
-from .exceptions import GasAppAuthError, GasAppConnectionError, GasAppDataError
+from .exceptions import GasAppAuthError, GasAppConnectionError, GasAppDataError, GasAppError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +73,9 @@ class GasAppApiClient:
                 response.raise_for_status()
                 return await response.json()
 
+        except GasAppError:
+            # Already classified (401/403 → GasAppAuthError drives reauth).
+            raise
         except aiohttp.ClientError as e:
             _LOGGER.error(f"GasApp API request failed: {e}")
             raise GasAppConnectionError(f"Request failed: {e}") from e

@@ -18,7 +18,8 @@ import logging
 import re
 
 import aiohttp
-from curl_cffi import requests as cffi_requests
+
+from custom_components.kr_public_data.utils import async_import_curl_cffi
 
 _LOGGER = logging.getLogger(__name__)
 _IMPERSONATE = "chrome"
@@ -46,10 +47,11 @@ class SafetyAlertRegionApiClient:
 
     async def _post_json(self, url: str, payload: dict) -> list | None:
         try:
+            cffi_requests = await async_import_curl_cffi()
             async with cffi_requests.AsyncSession(impersonate=_IMPERSONATE) as s:
                 r = await s.post(
                     url, json=payload, headers=self._headers(),
-                    timeout=_TIMEOUT, verify=False,
+                    timeout=_TIMEOUT,
                 )
             if r.status_code != 200:
                 _LOGGER.warning("Region API %s: HTTP %s", url, r.status_code)
@@ -74,8 +76,9 @@ class SafetyAlertRegionApiClient:
         rendered into the page HTML, so scrape them from there.
         """
         try:
+            cffi_requests = await async_import_curl_cffi()
             async with cffi_requests.AsyncSession(impersonate=_IMPERSONATE) as s:
-                r = await s.get(_PAGE_URL, timeout=_TIMEOUT, verify=False)
+                r = await s.get(_PAGE_URL, timeout=_TIMEOUT)
             if r.status_code != 200:
                 return []
             result = [

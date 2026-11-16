@@ -1,17 +1,34 @@
 """Utility functions - NO pytz, NO blocking imports."""
 from __future__ import annotations
 
+import asyncio
+import importlib
 import random
-from datetime import datetime
+import sys
+from datetime import datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
 
-TZ_ASIA_SEOUL = ZoneInfo("Asia/Seoul")
+# Korea has had no DST since 1988, so a fixed offset is exact and — unlike
+# ZoneInfo — never reads tzdata from disk (safe to build on the event loop).
+KST = timezone(timedelta(hours=9), "KST")
 
 # 전체 시도명 → 축약명 (airkorea의 STATIONS_BY_SIDO/SIDO_AREA_CODE 키).
 # 나머지 시도는 앞 두 글자가 곧 축약명이다.
 _SIDO_SHORT = {"충청북도": "충북", "충청남도": "충남", "전라남도": "전남",
                "경상북도": "경북", "경상남도": "경남"}
+
+
+async def async_import_curl_cffi() -> Any:
+    """Return ``curl_cffi.requests``, importing it in the executor.
+
+    curl_cffi loads a large C extension on first import, which must not
+    happen on the event loop. Later calls are a ``sys.modules`` hit.
+    """
+    mod = sys.modules.get("curl_cffi.requests")
+    if mod is None:
+        mod = await asyncio.get_running_loop().run_in_executor(
+            None, importlib.import_module, "curl_cffi.requests")
+    return mod
 
 
 def sido_short_name(name: str) -> str:

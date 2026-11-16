@@ -1,7 +1,7 @@
 """School lunch + timetable LLM tools (NEIS Open API)."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
@@ -10,6 +10,7 @@ from homeassistant.helpers import llm
 
 from custom_components.kr_public_data.const import ENTRY_SCHOOL
 from custom_components.kr_public_data.school import ALLERGY_MAP
+from custom_components.kr_public_data.utils import KST
 
 from .base_tool import BaseKRTool
 from .render import svg_card, svg_table
@@ -22,7 +23,7 @@ _MEAL_ACCENT = "#84cc16"     # lime
 
 
 def _resolve_iso_date(when: str) -> str | None:
-    today = date.today()
+    today = datetime.now(KST).date()
     if when == "today":
         return today.isoformat()
     if when == "tomorrow":

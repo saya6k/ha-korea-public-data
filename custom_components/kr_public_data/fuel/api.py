@@ -12,11 +12,11 @@ from .coords import katec_to_wgs84
 
 _LOGGER = logging.getLogger(__name__)
 
-async def validate_opinet(api_key: str) -> bool:
+async def validate_opinet(session: aiohttp.ClientSession, api_key: str) -> bool:
     params = {"code": api_key, "out": "xml"}
     try:
-        async with aiohttp.ClientSession() as s, s.get(OPINET_AVG_URL, params=params,
-                         timeout=aiohttp.ClientTimeout(total=15)) as r:
+        async with session.get(OPINET_AVG_URL, params=params,
+                               timeout=aiohttp.ClientTimeout(total=15)) as r:
             return r.status == 200
     except Exception:
         return False

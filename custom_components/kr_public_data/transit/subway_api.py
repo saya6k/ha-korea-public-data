@@ -15,13 +15,10 @@ _LOGGER = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 
-async def validate_seoul_api(api_key: str) -> bool:
+async def validate_seoul_api(session: aiohttp.ClientSession, api_key: str) -> bool:
     url = SUBWAY_BULK_URL.format(key=api_key, station="서울")
     try:
-        async with (
-            aiohttp.ClientSession() as s,
-            s.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r,
-        ):
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r:
             if r.status != 200:
                 return False
             d = await r.json(content_type=None)

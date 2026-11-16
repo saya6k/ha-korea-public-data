@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 
 from custom_components.kr_public_data.const import ENTRY_PHARMACY
+from custom_components.kr_public_data.utils import KST
 
 from .base_tool import BaseKRTool
 from .render import grid_results
@@ -86,7 +87,7 @@ class GetOpenPharmaciesTool(BaseKRTool):
 
         only_open = tool_input.tool_args.get("only_open", False)
         limit = tool_input.tool_args.get("limit") or 8
-        now = datetime.now()
+        now = datetime.now(KST)
 
         pharmacies = []
         for ph in data:

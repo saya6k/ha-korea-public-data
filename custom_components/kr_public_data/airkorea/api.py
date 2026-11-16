@@ -5,16 +5,15 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import aiohttp
 
 from custom_components.kr_public_data.exceptions import KrTransientError, raise_for_result_code
+from custom_components.kr_public_data.utils import KST
 
 from . import FORECAST_URL, REALTIME_URL, STATION_URL
 
 _LOGGER = logging.getLogger(__name__)
-KST = ZoneInfo("Asia/Seoul")
 
 
 async def search_stations(

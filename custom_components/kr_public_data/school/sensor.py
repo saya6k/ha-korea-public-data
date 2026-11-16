@@ -1,18 +1,23 @@
 """School sensors (lunch + info)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.kr_public_data.const import DOMAIN
+from custom_components.kr_public_data.utils import KST
 
 from .device import school_device
 
 if TYPE_CHECKING:
     from .coordinator import SchoolCoordinator
+
+
+def _today_iso() -> str:
+    return datetime.now(KST).date().isoformat()
 
 
 class SchoolLunchSensor(CoordinatorEntity, SensorEntity):
@@ -28,11 +33,11 @@ class SchoolLunchSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_info = school_device(data)
     @property
     def native_value(self) -> str:
-        lunch = (self.coordinator.data or {}).get("lunch", {}).get(date.today().isoformat())
+        lunch = (self.coordinator.data or {}).get("lunch", {}).get(_today_iso())
         return ", ".join(lunch["menu"]) if lunch else "급식 없음"
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        lunch = (self.coordinator.data or {}).get("lunch", {}).get(date.today().isoformat(), {})
+        lunch = (self.coordinator.data or {}).get("lunch", {}).get(_today_iso(), {})
         return {k: lunch.get(k) for k in ("menu", "calorie", "allergy_codes") if lunch.get(k)}
 
 class SchoolInfoSensor(CoordinatorEntity, SensorEntity):

@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 from bs4 import BeautifulSoup
-from curl_cffi import requests as cffi_requests
+
+from custom_components.kr_public_data.utils import async_import_curl_cffi
 
 from .exceptions import SafetyAlertConnectionError
 
@@ -105,12 +106,13 @@ class SafetyAlertApiClient:
             "Upgrade-Insecure-Requests": "1",
         }
         try:
+            cffi_requests = await async_import_curl_cffi()
             async with cffi_requests.AsyncSession(impersonate=_IMPERSONATE) as s:
                 # Warmup: pick up elevisor / JSESSIONID cookies.
-                await s.get(_WARMUP_URL, timeout=_TIMEOUT, verify=False)
+                await s.get(_WARMUP_URL, timeout=_TIMEOUT)
                 r = await s.get(
                     _LIST_URL, params=params, headers=headers,
-                    timeout=_TIMEOUT, verify=False,
+                    timeout=_TIMEOUT,
                 )
 
             if r.status_code != 200:

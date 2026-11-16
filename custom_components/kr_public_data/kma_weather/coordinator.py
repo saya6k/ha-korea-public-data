@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -12,6 +12,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.kr_public_data.exceptions import KrTransientError
 from custom_components.kr_public_data.resilience import ResilientCoordinator
+from custom_components.kr_public_data.utils import KST
 
 from . import KMA_SCAN_INTERVAL, region_key
 from .api import fetch_vilage_forecast, parse_weather
@@ -22,6 +23,20 @@ _LOGGER = logging.getLogger(__name__)
 # cycle, so back-to-back requests (forecast/O3/UV, or multiple regions) don't
 # bunch up against the gateway's per-second rate limit.
 _REQUEST_JITTER = (0.2, 0.5)
+
+
+def _uv_offset(uv: dict[str, Any], now: datetime) -> int:
+    """3-hour field offset (h0, h3, …) matching ``now``.
+
+    The living-index fields count hours from the bulletin's issue time
+    (``date``, YYYYMMDDHH KST — 06 or 18), not from midnight.
+    """
+    try:
+        issued = datetime.strptime(str(uv.get("date", "")), "%Y%m%d%H").replace(tzinfo=KST)
+    except ValueError:
+        return 0
+    hours = int((now - issued).total_seconds() // 3600)
+    return max(hours // 3 * 3, 0)
 
 
 class KMAWeatherCoordinator(ResilientCoordinator):
@@ -87,10 +102,7 @@ class KMAWeatherCoordinator(ResilientCoordinator):
                 from custom_components.kr_public_data.airkorea.api import fetch_uv_index
                 uv = await fetch_uv_index(session, self._living_key, self._area_no)
                 if uv:
-                    from datetime import datetime
-                    from zoneinfo import ZoneInfo
-                    now = datetime.now(ZoneInfo("Asia/Seoul"))
-                    h = (now.hour // 3) * 3
+                    h = _uv_offset(uv, datetime.now(KST))
                     for field in [f"h{h}", "h0"]:
                         val = uv.get(field)
                         if val and str(val).strip():

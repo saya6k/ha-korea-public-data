@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
-from zoneinfo import ZoneInfo
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
@@ -9,12 +8,12 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.kr_public_data.const import DOMAIN
+from custom_components.kr_public_data.utils import KST
 
 from .coordinator import SchoolCoordinator
 from .device import school_device
 
 # 한국 표준시 (KST)
-KST = ZoneInfo("Asia/Seoul")
 
 
 class SchoolCalendar(CoordinatorEntity, CalendarEntity):

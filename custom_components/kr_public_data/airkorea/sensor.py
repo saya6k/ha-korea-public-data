@@ -1,9 +1,8 @@
 """AirKorea sensors + binary_sensor + event + calendar."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
@@ -14,11 +13,11 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.kr_public_data.const import DOMAIN
+from custom_components.kr_public_data.utils import KST
 
 if TYPE_CHECKING:
     from .coordinator import AirKoreaCoordinator
 
-KST = ZoneInfo("Asia/Seoul")
 
 def air_device(station_name: str) -> DeviceInfo:
     return DeviceInfo(identifiers={(DOMAIN, f"air_{station_name}")},
@@ -188,7 +187,7 @@ class AirForecastCalendar(CoordinatorEntity, CalendarEntity):
         if not alerts:
             return None
         a = alerts[0]
-        today = date.today()
+        today = datetime.now(KST).date()
         return CalendarEvent(
             start=today,
             end=today + timedelta(days=1),

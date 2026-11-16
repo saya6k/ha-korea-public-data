@@ -20,13 +20,13 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .exceptions import KrAuthError, KrQuotaError
-from .utils import TZ_ASIA_SEOUL
+from .utils import KST
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _next_midnight_kst() -> datetime:
-    now = dt_util.utcnow().astimezone(TZ_ASIA_SEOUL)
+    now = dt_util.utcnow().astimezone(KST)
     return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
@@ -63,7 +63,7 @@ class ResilientCoordinator[DataT](DataUpdateCoordinator[DataT]):
 
     async def _async_update_data(self) -> DataT:
         if self._quota_blocked_until:
-            if dt_util.utcnow().astimezone(TZ_ASIA_SEOUL) < self._quota_blocked_until:
+            if dt_util.utcnow().astimezone(KST) < self._quota_blocked_until:
                 return self._stale_or_fail("daily quota exhausted")
             self._quota_blocked_until = None
 
