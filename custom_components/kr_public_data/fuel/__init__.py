@@ -1,6 +1,6 @@
 """Fuel price sub-module constants."""
-OPINET_AVG_URL = "http://www.opinet.co.kr/api/avgAllPrice.do"
-OPINET_LOWPRICE_URL = "http://www.opinet.co.kr/api/lowTop10.do"
+OPINET_AVG_URL = "https://www.opinet.co.kr/api/avgAllPrice.do"
+OPINET_LOWPRICE_URL = "https://www.opinet.co.kr/api/lowTop10.do"
 FUEL_SCAN_INTERVAL = 3600  # 1시간
 FUEL_TYPES = {"B027": "휘발유", "D047": "경유", "B034": "고급휘발유", "K015": "등유", "C004": "LPG"}
 SIDO_CODES = {
