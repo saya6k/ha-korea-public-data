@@ -10,12 +10,17 @@ Do not "fix" the casing below without re-verifying against a live response.
 """
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 import aiohttp
 
-from custom_components.kr_public_data.exceptions import KrTransientError, raise_for_result_code
+from custom_components.kr_public_data.exceptions import (
+    KrTransientError,
+    raise_for_gateway_error,
+    raise_for_result_code,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,9 +47,11 @@ async def _call(session: aiohttp.ClientSession, base_url: str, operation: str,
     try:
         async with session.get(url, params=query,
                                 timeout=aiohttp.ClientTimeout(total=15)) as r:
+            text = await r.text()
+            raise_for_gateway_error(text)
             if r.status != 200:
                 raise KrTransientError(f"{operation}: HTTP {r.status}")
-            data = await r.json(content_type=None)
+            data = json.loads(text)
     except aiohttp.ClientError as err:
         raise KrTransientError(f"{operation}: {err}") from err
 

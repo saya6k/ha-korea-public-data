@@ -6,6 +6,8 @@ KrTransientError / anything else → stale-keep with tolerance.
 """
 from __future__ import annotations
 
+import re
+
 
 class KrApiError(Exception):
     """Base error for all kr_public_data API failures."""
@@ -21,6 +23,28 @@ class KrQuotaError(KrApiError):
 
 class KrTransientError(KrApiError):
     """Intermittent failure (TLS reset, timeout, 5xx, bad payload)."""
+
+
+# The data.go.kr gateway answers key/quota problems itself, before the
+# service sees the request, with an ``OpenAPI_ServiceResponse`` envelope
+# (HTTP 401/403/429, same shape in JSON and XML) instead of the service's own
+# ``response.header``. Verified live 2026-11-17: an unregistered key returns
+# HTTP 403 + returnReasonCode 30.
+_GATEWAY_CODE = re.compile(r'returnReasonCode"?\s*[:>]\s*"?(\d+)')
+_GATEWAY_MSG = re.compile(r'returnAuthMsg"?\s*[:>]\s*"?([^"<]*)')
+
+
+def raise_for_gateway_error(text: str) -> None:
+    """Raise KrAuthError/KrQuotaError for a data.go.kr gateway envelope.
+
+    Call it on the raw body before any HTTP-status check, so a rejected key
+    reaches the reauth flow instead of being retried as a transient error.
+    """
+    if "OpenAPI_ServiceResponse" not in text:
+        return
+    code = _GATEWAY_CODE.search(text)
+    msg = _GATEWAY_MSG.search(text)
+    raise_for_result_code(code.group(1) if code else None, msg.group(1) if msg else "")
 
 
 def raise_for_result_code(code: str | None, msg: str = "") -> None:

@@ -97,7 +97,7 @@ class KMAWeatherCoordinator(ResilientCoordinator):
             except Exception as e:
                 _LOGGER.debug("KMA O3 fetch: %s", e)
 
-        # 3. Fetch UV index from Living Weather V4 (same session)
+        # 3. Fetch UV index from Living Weather V5 (same session)
         if self._area_no:
             await asyncio.sleep(random.uniform(*_REQUEST_JITTER))
             try:

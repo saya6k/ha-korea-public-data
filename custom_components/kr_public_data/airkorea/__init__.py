@@ -5,9 +5,9 @@ REALTIME_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAc
 FORECAST_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMinuDustFrcstDspth"
 SCAN_INTERVAL = 1800
 
-# 생활기상지수 조회서비스 V4 (15085288)
-UV_IDX_URL = "https://apis.data.go.kr/1360000/LivingWthrIdxServiceV4/getUVIdxV4"
-AIR_STAG_URL = "https://apis.data.go.kr/1360000/LivingWthrIdxServiceV4/getAirDiffusionIdxV4"
+# 생활기상지수 조회서비스 V5 (V4 was retired: NO_OPENAPI_SERVICE_ERROR, 2026-11)
+UV_IDX_URL = "https://apis.data.go.kr/1360000/LivingWthrIdxServiceV5/getUVIdxV5"
+AIR_STAG_URL = "https://apis.data.go.kr/1360000/LivingWthrIdxServiceV5/getAirDiffusionIdxV5"
 
 # 시도 → 행정구역코드 (생활기상지수용 areaNo)
 SIDO_AREA_CODE = {

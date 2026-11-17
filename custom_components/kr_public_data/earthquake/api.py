@@ -10,7 +10,10 @@ from typing import Any
 
 import aiohttp
 
-from custom_components.kr_public_data.exceptions import raise_for_result_code
+from custom_components.kr_public_data.exceptions import (
+    raise_for_gateway_error,
+    raise_for_result_code,
+)
 from custom_components.kr_public_data.utils import KST
 
 from . import EQ_URL
@@ -30,6 +33,7 @@ async def fetch_earthquakes(
     async with session.get(EQ_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=15)) as r:
         text = await r.text()
+    raise_for_gateway_error(text)
     try:
         data = json.loads(text)
         header = data.get("response", {}).get("header", {})

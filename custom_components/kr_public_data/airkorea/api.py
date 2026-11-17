@@ -1,4 +1,4 @@
-"""AirKorea API client - V4 for living index."""
+"""AirKorea API client - V5 for living index."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,11 @@ from typing import Any
 
 import aiohttp
 
-from custom_components.kr_public_data.exceptions import KrTransientError, raise_for_result_code
+from custom_components.kr_public_data.exceptions import (
+    KrTransientError,
+    raise_for_gateway_error,
+    raise_for_result_code,
+)
 from custom_components.kr_public_data.utils import KST
 
 from . import FORECAST_URL, REALTIME_URL, STATION_URL
@@ -49,6 +53,7 @@ async def fetch_realtime(
     async with session.get(REALTIME_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=15)) as r:
         text = await r.text()
+        raise_for_gateway_error(text)
         if r.status != 200:
             raise KrTransientError(f"AirKorea realtime HTTP {r.status}")
     try:
@@ -75,6 +80,7 @@ async def fetch_forecast(session: aiohttp.ClientSession, api_key: str) -> list[d
     async with session.get(FORECAST_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=15)) as r:
         text = await r.text()
+        raise_for_gateway_error(text)
         if r.status != 200:
             raise KrTransientError(f"AirKorea forecast HTTP {r.status}")
     try:
@@ -98,7 +104,7 @@ async def fetch_forecast(session: aiohttp.ClientSession, api_key: str) -> list[d
 async def _fetch_living_v4(
     session: aiohttp.ClientSession, api_key: str, url: str, area_no: str
 ) -> dict[str, Any]:
-    """Fetch V4 living index. time = YYYYMMDDHH, issued at 06/18 KST."""
+    """Fetch V5 living index. time = YYYYMMDDHH, issued at 06/18 KST."""
     now = datetime.now(KST)
     # Try current issue time, then previous
     base_h = 18 if now.hour >= 18 else 6
@@ -118,7 +124,7 @@ async def _fetch_living_v4(
             async with session.get(url, params=params,
                                    timeout=aiohttp.ClientTimeout(total=10)) as r:
                 if r.status != 200:
-                    _LOGGER.debug("Living V4 HTTP %s for time=%s", r.status, time_str)
+                    _LOGGER.debug("Living V5 HTTP %s for time=%s", r.status, time_str)
                     continue
                 text = await r.text()
             data = json.loads(text)
@@ -131,14 +137,14 @@ async def _fetch_living_v4(
                 if isinstance(items, dict):
                     items = [items]
                 if isinstance(items, list) and items:
-                    _LOGGER.debug("Living V4 OK: time=%s keys=%s", time_str,
+                    _LOGGER.debug("Living V5 OK: time=%s keys=%s", time_str,
                                   [k for k in items[0] if items[0].get(k)])
                     return items[0]
             else:
-                _LOGGER.debug("Living V4 error: time=%s code=%s msg=%s",
+                _LOGGER.debug("Living V5 error: time=%s code=%s msg=%s",
                               time_str, rc, header.get("resultMsg", ""))
         except Exception as e:
-            _LOGGER.debug("Living V4 exception: %s", e)
+            _LOGGER.debug("Living V5 exception: %s", e)
     return {}
 
 

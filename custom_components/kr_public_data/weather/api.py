@@ -1,13 +1,18 @@
 """KMA Weather Warning API client."""
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
 
 import aiohttp
 
-from custom_components.kr_public_data.exceptions import KrTransientError, raise_for_result_code
+from custom_components.kr_public_data.exceptions import (
+    KrTransientError,
+    raise_for_gateway_error,
+    raise_for_result_code,
+)
 from custom_components.kr_public_data.utils import KST
 
 from . import (
@@ -65,9 +70,11 @@ async def fetch_warning(session: aiohttp.ClientSession, api_key: str,
     try:
         async with session.get(KMA_API_BASE, params=params,
                                timeout=aiohttp.ClientTimeout(total=30)) as r:
+            text = await r.text()
+            raise_for_gateway_error(text)
             if r.status != 200:
                 raise KrTransientError(f"기상특보 HTTP {r.status}")
-            data = await r.json(content_type=None)
+            data = json.loads(text)
     except aiohttp.ClientError as err:
         raise KrTransientError(f"기상특보 연결 실패: {err}") from err
     hdr = data.get("response", {}).get("header", {})

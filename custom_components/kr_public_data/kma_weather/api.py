@@ -10,7 +10,11 @@ from typing import Any
 
 import aiohttp
 
-from custom_components.kr_public_data.exceptions import KrTransientError, raise_for_result_code
+from custom_components.kr_public_data.exceptions import (
+    KrTransientError,
+    raise_for_gateway_error,
+    raise_for_result_code,
+)
 from custom_components.kr_public_data.utils import KST
 
 from . import VILAGE_URL
@@ -110,6 +114,7 @@ async def fetch_vilage_forecast(
     async with session.get(VILAGE_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=20)) as r:
         text = await r.text()
+        raise_for_gateway_error(text)
         if r.status != 200:
             raise KrTransientError(f"KMA HTTP {r.status}: {text[:200]}")
     try:
