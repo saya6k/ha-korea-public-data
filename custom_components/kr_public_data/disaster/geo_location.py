@@ -13,6 +13,7 @@ from typing import Any
 
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.location import distance
 
@@ -70,11 +71,11 @@ class DisasterGeoLocationManager:
         for key in list(self._active):
             if key not in current_keys:
                 stale = self._active.pop(key)
-                # force_remove: these entities are registered (unique_id +
-                # config_subentry_id), so a plain async_remove() would only
-                # flip the state to unavailable instead of dropping it.
-                self._coordinator.hass.async_create_task(
-                    stale.async_remove(force_remove=True))
+                if stale.registry_entry is None:
+                    self._coordinator.hass.async_create_task(
+                        stale.async_remove(force_remove=True))
+        if self._coordinator.data is not None:
+            self._prune_registry(current_keys)
         new_entities = []
         for m in msgs:
             key = _msg_key(self._label, m)
@@ -86,6 +87,26 @@ class DisasterGeoLocationManager:
                 new_entities.append(ent)
         if new_entities:
             self._add_entities(new_entities)
+
+    @callback
+    def _prune_registry(self, current_keys: set[str]) -> None:
+        """Delete registry entries for messages that left the fetch window.
+
+        Removing the state alone leaves the registry entry, which HA restores
+        as an "unavailable" entity on every restart. Deleting the entry also
+        removes a live entity, and this covers entries left over from before
+        this cleanup existed or from messages that aged out while HA was down.
+        """
+        entry = self._coordinator.config_entry
+        if entry is None:
+            return
+        registry = er.async_get(self._coordinator.hass)
+        prefix = f"{DOMAIN}_disaster_geo_{self._label}_"
+        for reg in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if (reg.domain == "geo_location" and reg.unique_id.startswith(prefix)
+                    and reg.unique_id.removeprefix(f"{DOMAIN}_disaster_geo_")
+                    not in current_keys):
+                registry.async_remove(reg.entity_id)
 
     def unload(self) -> None:
         self._remove_listener()
