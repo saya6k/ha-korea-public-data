@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -20,9 +21,9 @@ _LOGGER = logging.getLogger(__name__)
 class GasAppCoordinator(ResilientCoordinator):
     stale_tolerance = 4  # monthly gas bill data
 
-    def __init__(self, hass: HomeAssistant, token: str, member_id: str,
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, token: str, member_id: str,
                  contract_num: str) -> None:
-        super().__init__(hass, _LOGGER, name="gasapp",
+        super().__init__(hass, _LOGGER, config_entry=entry, name="gasapp",
                          update_interval=timedelta(seconds=GASAPP_SCAN_INTERVAL))
         self.client = GasAppApiClient(async_get_clientsession(hass))
         self.client.set_credentials(token, member_id, contract_num)

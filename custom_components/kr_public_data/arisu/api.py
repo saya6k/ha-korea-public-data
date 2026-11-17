@@ -44,10 +44,6 @@ class ArisuApiClient:
         pprevious_date = previous_date - timedelta(days=previous_date.day)
         pprevious_month = pprevious_date.strftime("%Y-%m")
 
-        _LOGGER.debug(
-            f"Trying to get Arisu data for {customer_name} (#{customer_number}): "
-            f"current month={current_month}, previous month={previous_month}"
-        )
 
         # 현재 월 먼저 시도
         current_data = await self.async_get_water_bill(
@@ -55,37 +51,22 @@ class ArisuApiClient:
         )
 
         if current_data.get("success", False):
-            _LOGGER.debug(
-                f"Successfully got current month data for {customer_name} (#{customer_number})"
-            )
             current_data["billing_month"] = current_month
             return current_data
 
-        _LOGGER.debug(
-            f"No current month data, trying previous month for {customer_name} (#{customer_number})"
-        )
         previous_data = await self.async_get_water_bill(
             customer_number, customer_name, previous_month
         )
 
         if previous_data.get("success", False):
-            _LOGGER.debug(
-                f"Successfully got previous month data for {customer_name} (#{customer_number})"
-            )
             previous_data["billing_month"] = previous_month
             return previous_data
 
-        _LOGGER.debug(
-            f"No current month data, trying previous month for {customer_name} (#{pprevious_month})"
-        )
         pprevious_data = await self.async_get_water_bill(
             customer_number, customer_name, pprevious_month
         )
 
         if pprevious_data.get("success", False):
-            _LOGGER.debug(
-                f"Successfully got previous month data for {customer_name} (#{customer_number})"
-            )
             pprevious_data["billing_month"] = previous_month
             return pprevious_data
 
@@ -143,10 +124,6 @@ class ArisuApiClient:
                                "Chrome/138.0.0.0 Safari/537.36"),
             }
 
-            _LOGGER.debug(
-                f"Sending Arisu request with customer_number: {customer_number}, "
-                f"customer_name: {customer_name}, billing_month: {billing_month}"
-            )
 
             async with self._session.post(
                 self._base_url,
@@ -154,7 +131,7 @@ class ArisuApiClient:
                 headers=headers,
                 allow_redirects=True,
             ) as response:
-                _LOGGER.debug(f"Arisu API response status: {response.status}")
+                _LOGGER.debug("Arisu API response status: %s", response.status)
 
                 if response.status != 200:
                     raise ArisuConnectionError(
@@ -162,22 +139,16 @@ class ArisuApiClient:
                     )
 
                 html_content = await response.text()
-                _LOGGER.debug(f"Response content: {html_content}")
 
                 if 'id="totAmt"' in html_content and "value=" in html_content:
                     return self._parse_html_response(html_content)
                 else:
-                    _LOGGER.warning(
-                        f"No bill data structure found for customer: "
-                        f"{customer_name} (#{customer_number})"
-                    )
+                    _LOGGER.debug("Arisu: no bill data structure in the response")
                     return {"success": False, "error": "No bill data structure found"}
 
         except aiohttp.ClientError as e:
-            _LOGGER.error(f"Arisu API request failed: {e}")
             raise ArisuConnectionError(f"Request failed: {e}") from e
         except Exception as e:
-            _LOGGER.error(f"Unexpected error in Arisu API request: {e}")
             raise ArisuDataError(f"Unexpected error: {e}") from e
 
     async def _init_session(self) -> None:
@@ -204,10 +175,10 @@ class ArisuApiClient:
                     _LOGGER.debug("Session initialized successfully")
                     # 세션 쿠키가 자동으로 저장됨
                 else:
-                    _LOGGER.warning(f"Session initialization failed: {response.status}")
+                    _LOGGER.warning("Session initialization failed: %s", response.status)
 
         except Exception as e:
-            _LOGGER.warning(f"Failed to initialize session: {e}")
+            _LOGGER.warning("Failed to initialize session: %s", e)
             # 세션 초기화 실패해도 계속 진행
 
     def _parse_html_response(self, html_content: str) -> dict[str, Any]:
@@ -242,7 +213,7 @@ class ArisuApiClient:
             }
 
         except Exception as e:
-            _LOGGER.error(f"Error parsing HTML response: {e}")
+            _LOGGER.error("Error parsing HTML response: %s", e)
             raise ArisuDataError(f"HTML parsing failed: {e}") from e
 
     def _extract_customer_info_from_har(self, soup: BeautifulSoup) -> dict[str, str]:
@@ -280,7 +251,7 @@ class ArisuApiClient:
                     info["payment_method"] = payment_cell.get_text(strip=True)
 
         except Exception as e:
-            _LOGGER.warning(f"Error extracting customer info: {e}")
+            _LOGGER.warning("Error extracting customer info: %s", e)
 
         return info
 
@@ -323,7 +294,7 @@ class ArisuApiClient:
                 usage["previous_reading"] = min(reading_values)
 
         except Exception as e:
-            _LOGGER.warning(f"Error extracting usage info: {e}")
+            _LOGGER.warning("Error extracting usage info: %s", e)
 
         return usage
 
@@ -348,7 +319,7 @@ class ArisuApiClient:
                             arrears["unpaid_amount"] = self._clean_amount(value)
 
         except Exception as e:
-            _LOGGER.warning(f"Error extracting arrears info: {e}")
+            _LOGGER.warning("Error extracting arrears info: %s", e)
 
         return arrears
 

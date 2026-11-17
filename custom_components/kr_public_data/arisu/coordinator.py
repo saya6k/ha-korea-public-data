@@ -5,8 +5,9 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from custom_components.kr_public_data.resilience import ResilientCoordinator
 
@@ -18,12 +19,21 @@ _LOGGER = logging.getLogger(__name__)
 class ArisuCoordinator(ResilientCoordinator):
     stale_tolerance = 4  # monthly water bill data
 
-    def __init__(self, hass: HomeAssistant, customer_number: str, customer_name: str) -> None:
-        super().__init__(hass, _LOGGER, name="arisu",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 customer_number: str, customer_name: str) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="arisu",
                          update_interval=timedelta(seconds=ARISU_SCAN_INTERVAL))
-        self.client = ArisuApiClient(async_get_clientsession(hass))
+        # Own session: the site tracks the visit with cookies, which must not
+        # land in HA's shared cookie jar.
+        self._http = async_create_clientsession(hass)
+        self.client = ArisuApiClient(self._http)
         self._num = customer_number
         self._name = customer_name
 
     async def _fetch(self) -> dict[str, Any]:
         return await self.client.async_get_water_bill_data(self._num, self._name)
+
+    async def async_shutdown(self) -> None:
+        """Close the private session (runs on entry unload)."""
+        await super().async_shutdown()
+        await self._http.close()

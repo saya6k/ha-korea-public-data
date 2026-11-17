@@ -5,7 +5,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_ENTRY_TYPE,
-    DOMAIN,
     ENTRY_AIRKOREA,
     ENTRY_DISASTER,
     ENTRY_EARTHQUAKE,
@@ -17,7 +16,7 @@ from .const import (
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
     etype = entry.data.get(CONF_ENTRY_TYPE)
-    store = hass.data[DOMAIN][entry.entry_id]
+    store = entry.runtime_data
     entities = []
 
     if etype == ENTRY_WEATHER:

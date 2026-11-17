@@ -54,7 +54,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    hass.data.setdefault(DOMAIN, {})
     etype = entry.data[CONF_ENTRY_TYPE]
     store: dict = {}
 
@@ -66,7 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         areas = {sub_id: sub.data["area_code"]
                  for sub_id, sub in entry.subentries.items()}
         area_codes = list(areas.values()) or entry.data.get("area_codes", [])
-        c = WeatherWarningCoordinator(hass, api_key, area_codes)
+        c = WeatherWarningCoordinator(hass, entry, api_key, area_codes)
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c, "area_codes": area_codes, "areas": areas}
         async_cleanup_stale_weather_entities(hass, entry, area_codes)
@@ -86,7 +85,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                              for d in line_directions(lid)]
             station_subs[sub_id] = {
                 "station": station, "lines": sub.data.get("lines", []),
-                "coordinator": SubwayCoordinator(hass, seoul_key, station,
+                "coordinator": SubwayCoordinator(hass, entry, seoul_key, station,
                                                  subscriptions)}
         sc = {info["station"]: info["coordinator"]
               for info in station_subs.values()}
@@ -97,7 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sg: dict[str, list] = {}
             for item in legacy_items:
                 sg.setdefault(item["station"], []).append(item)
-            sc = {station: SubwayCoordinator(hass, seoul_key, station, subs)
+            sc = {station: SubwayCoordinator(hass, entry, seoul_key, station, subs)
                   for station, subs in sg.items()}
         await async_first_refresh_all(list(sc.values()), "subway")
         store = {"subway_coords": sc, "station_subs": station_subs,
@@ -115,7 +114,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             configs = entry.data.get("configs", [])
         if not configs and "sido_code" in entry.data:
             configs = [{"sido_code": entry.data["sido_code"], "fuel_code": entry.data["fuel_code"]}]
-        c = FuelCoordinator(hass, api_key, configs)
+        c = FuelCoordinator(hass, entry, api_key, configs)
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c, "configs": configs}
         async_cleanup_stale_fuel_entities(hass, entry, configs)
@@ -126,7 +125,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api_key = entry.data.get("neis_api_key") or entry.data.get("api_key", "")
         # 학교 per subentry: one coordinator per school.
         school_subs = {sub_id: {"data": sub.data,
-                                 "coordinator": SchoolCoordinator(hass, api_key, sub.data, sub_id)}
+                                 "coordinator": SchoolCoordinator(
+                                     hass, entry, api_key, sub.data, sub_id)}
                        for sub_id, sub in entry.subentries.items()}
         if school_subs:
             await async_first_refresh_all(
@@ -138,14 +138,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             store = {"school_subs": school_subs, "coordinator": first["coordinator"]}
         else:
             # legacy entry: single school lives directly in entry.data
-            c = SchoolCoordinator(hass, api_key, entry.data, entry.entry_id)
+            c = SchoolCoordinator(hass, entry, api_key, entry.data, entry.entry_id)
             await c.async_config_entry_first_refresh()
             store = {"coordinator": c}
 
     elif etype == ENTRY_DISASTER:
         from .disaster.coordinator import DisasterCoordinator
         api_key = entry.data.get("safety_api_key") or entry.data["api_key"]
-        c = DisasterCoordinator(hass, api_key)
+        c = DisasterCoordinator(hass, entry, api_key)
         await c.async_config_entry_first_refresh()
         # One shared fetch; each 시군구 subentry filters in its entities.
         regions = {sub_id: dict(sub.data) for sub_id, sub in entry.subentries.items()}
@@ -159,7 +159,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not regions and entry.data.get("area_code"):
             regions = [{"code": entry.data["area_code"], "name": entry.data.get("area_name", "")}]
         from .resilience import async_first_refresh_all
-        coordinators = {region["code"]: SafetyAlertCoordinator(hass, region["code"])
+        coordinators = {region["code"]: SafetyAlertCoordinator(hass, entry, region["code"])
                         for region in regions}
         await async_first_refresh_all(list(coordinators.values()), "safety_alert")
         store = {"coordinators": coordinators, "regions": regions}
@@ -170,7 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         from .kepco.coordinator import KepcoCoordinator
         from .kepco.exceptions import KepcoAuthError
-        c = KepcoCoordinator(hass, entry.data["username"], entry.data["password"])
+        c = KepcoCoordinator(hass, entry, entry.data["username"], entry.data["password"])
         try:
             await c.async_login()
         except KepcoAuthError as err:
@@ -184,14 +184,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     elif etype == ENTRY_GASAPP:
         from .gasapp.coordinator import GasAppCoordinator
-        c = GasAppCoordinator(hass, entry.data["token"],
+        c = GasAppCoordinator(hass, entry, entry.data["token"],
                                entry.data["member_id"], entry.data["contract_num"])
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c}
 
     elif etype == ENTRY_ARISU:
         from .arisu.coordinator import ArisuCoordinator
-        c = ArisuCoordinator(hass, entry.data["customer_number"], entry.data["customer_name"])
+        c = ArisuCoordinator(
+            hass, entry, entry.data["customer_number"], entry.data["customer_name"])
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c}
 
@@ -210,7 +211,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             else:
                 # 가장 오래된 레거시: 단일 지역(q0/q1) flat 엔트리.
                 regions = [{"sido": entry.data.get("q0", ""), "sgg": entry.data.get("q1", "")}]
-        coords = {i: PharmacyCoordinator(hass, api_key, r.get("sido", ""), r.get("sgg", ""))
+        coords = {i: PharmacyCoordinator(hass, entry, api_key, r.get("sido", ""), r.get("sgg", ""))
                   for i, r in enumerate(regions)}
         await async_first_refresh_all(list(coords.values()), "pharmacy")
         store = {"coordinators": coords, "coordinator": next(iter(coords.values())),
@@ -226,7 +227,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         for sub_id, sub in entry.subentries.items()}
         stations = list(station_subs.values()) or entry.data.get("stations", [])
         sido = entry.data.get("sido", "서울")
-        c = AirKoreaCoordinator(hass, api_key, stations,
+        c = AirKoreaCoordinator(hass, entry, api_key, stations,
                                  living_api_key=living_key, sido=sido)
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c, "stations": stations,
@@ -245,8 +246,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # full sido name stored area_no="" — recompute from the stored sido.
         area_no = entry.data.get("area_no", "") or SIDO_AREA_CODE.get(
             sido_short_name(entry.data.get("sido", "")), "")
-        c = KMAWeatherCoordinator(
-            hass, api_key, regions,
+        c = KMAWeatherCoordinator(hass, entry, api_key, regions,
             air_api_key=api_key,
             air_station=entry.data.get("air_station", ""),
             living_api_key=api_key,
@@ -259,7 +259,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     elif etype == ENTRY_EARTHQUAKE:
         from .earthquake.coordinator import EarthquakeCoordinator
         api_key = entry.data["api_key"]
-        c = EarthquakeCoordinator(hass, api_key)
+        c = EarthquakeCoordinator(hass, entry, api_key)
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c}
 
@@ -287,7 +287,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "arrTerminalName": sub.data["arrTerminalName"],
                     "grades": sub.data.get("grades", []),
                     "coordinator": IntercityBusCoordinator(
-                        hass, service_key, sub.data.get("queries", []),
+                        hass, entry, service_key, sub.data.get("queries", []),
                         sub.data.get("grades", [])),
                 }
             elif sub.data.get("source") == "seoul":
@@ -297,7 +297,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "nodeName": sub.data["nodeName"],
                     "routes": sub.data.get("routes", []),
                     "coordinator": SeoulBusCoordinator(
-                        hass, service_key, sub.data["nodeId"],
+                        hass, entry, service_key, sub.data["nodeId"],
                         [r["routeId"] for r in sub.data.get("routes", [])]),
                 }
             else:
@@ -308,7 +308,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "nodeName": sub.data["nodeName"],
                     "routes": sub.data.get("routes", []),
                     "coordinator": CityBusCoordinator(
-                        hass, service_key, sub.data["cityCode"], sub.data["nodeId"],
+                        hass, entry, service_key, sub.data["cityCode"], sub.data["nodeId"],
                         [r["routeId"] for r in sub.data.get("routes", [])]),
                 }
         sc = {info["nodeId"]: info["coordinator"] for info in stop_subs.values()}
@@ -320,7 +320,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         store = {"city_bus_coords": sc, "stop_subs": stop_subs, "city_bus_by_name": by_name,
                  "route_subs": route_subs, "intercity_bus_by_name": route_by_name}
 
-    hass.data[DOMAIN][entry.entry_id] = store
+    entry.runtime_data = store
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORM_MAP.get(etype, []))
     async_register_llm_api(hass, entry, etype)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -333,9 +333,6 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     etype = entry.data.get(CONF_ENTRY_TYPE)
-    unload_ok = await hass.config_entries.async_unload_platforms(
+    return await hass.config_entries.async_unload_platforms(
         entry, PLATFORM_MAP.get(etype, []))
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-    return unload_ok
 

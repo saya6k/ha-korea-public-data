@@ -1,15 +1,17 @@
 """School data coordinator - supports multiple grade+class combos."""
 from __future__ import annotations
 
-import contextlib
 import logging
+from collections.abc import Awaitable
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.kr_public_data.const import DOMAIN
+from custom_components.kr_public_data.exceptions import KrAuthError, KrQuotaError
 from custom_components.kr_public_data.resilience import ResilientCoordinator
 from custom_components.kr_public_data.utils import KST
 
@@ -32,10 +34,26 @@ def _school_year_mondays(ref: date | None = None) -> list[date]:
     return mondays
 
 
+async def _optional(request: Awaitable[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Rows of one NEIS request, or [] when it has nothing to return.
+
+    NEIS answers an empty week/month with an error envelope, so ordinary
+    failures are skipped — but key and quota problems must still reach the
+    coordinator (reauth / poll pause) instead of reading as "no timetable".
+    """
+    try:
+        return await request
+    except (KrAuthError, KrQuotaError):
+        raise
+    except Exception as err:
+        _LOGGER.debug("NEIS request skipped: %s", err)
+        return []
+
+
 class SchoolCoordinator(ResilientCoordinator):
     stale_tolerance = 2  # 6h interval: two misses already cover half a day
 
-    def __init__(self, hass: HomeAssistant, api_key: str, data: dict[str, Any],
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str, data: dict[str, Any],
                  coordinator_id: str) -> None:
         self.data_source = data
         self.client = NeisApiClient(async_get_clientsession(hass), api_key)
@@ -50,7 +68,8 @@ class SchoolCoordinator(ResilientCoordinator):
             self.grade_classes = [f"{g}-{c}" for c in cls_list]
         # All unique grades for calendar
         self.grades = list(set(gc.split("-")[0] for gc in self.grade_classes))
-        super().__init__(hass, _LOGGER, name=f"{DOMAIN}_school_{coordinator_id}",
+        super().__init__(hass, _LOGGER, config_entry=entry,
+                         name=f"{DOMAIN}_school_{coordinator_id}",
                          update_interval=timedelta(hours=6))
 
     async def _fetch(self) -> dict[str, Any]:
@@ -63,9 +82,8 @@ class SchoolCoordinator(ResilientCoordinator):
         cal = []
         cur = sy_start
         while cur <= sy_end:
-            with contextlib.suppress(Exception):
-                cal.extend(await self.client.get_schedule_month(
-                    self.rc, self.sc, cur.year, cur.month))
+            cal.extend(await _optional(self.client.get_schedule_month(
+                self.rc, self.sc, cur.year, cur.month)))
             cur = date(cur.year + (1 if cur.month == 12 else 0),
                        1 if cur.month == 12 else cur.month + 1, 1)
 
@@ -75,10 +93,9 @@ class SchoolCoordinator(ResilientCoordinator):
             g, cl = gc.split("-")
             tt = []
             for mon in mondays:
-                with contextlib.suppress(Exception):
-                    tt.extend(await self.client.get_timetable(
-                        self.rc, self.sc, self.level, int(g), cl,
-                        mon, mon + timedelta(days=6)))
+                tt.extend(await _optional(self.client.get_timetable(
+                    self.rc, self.sc, self.level, int(g), cl,
+                    mon, mon + timedelta(days=6))))
             timetables[gc] = parse_timetable(tt)
 
         # Use first grade for calendar filtering

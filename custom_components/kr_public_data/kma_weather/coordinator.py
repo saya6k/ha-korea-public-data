@@ -7,6 +7,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -42,10 +43,11 @@ def _uv_offset(uv: dict[str, Any], now: datetime) -> int:
 class KMAWeatherCoordinator(ResilientCoordinator):
     stale_tolerance = 4
 
-    def __init__(self, hass: HomeAssistant, api_key: str, regions: list[dict[str, Any]],
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 api_key: str, regions: list[dict[str, Any]],
                  air_api_key: str = "", air_station: str = "",
                  living_api_key: str = "", area_no: str = "") -> None:
-        super().__init__(hass, _LOGGER, name="kma_weather",
+        super().__init__(hass, _LOGGER, config_entry=entry, name="kma_weather",
                          update_interval=timedelta(seconds=KMA_SCAN_INTERVAL))
         self._api_key = api_key
         self._regions = regions

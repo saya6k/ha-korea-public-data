@@ -13,8 +13,15 @@ from custom_components.kr_public_data.llm.safety_alert_tool import GetSafetyAler
 from custom_components.kr_public_data.llm.tools import TOOLS_BY_ETYPE
 
 
+def _hass(store):
+    """Minimal hass whose only config entry carries `store` as runtime_data."""
+    entry = None if store is None else SimpleNamespace(runtime_data=store)
+    return SimpleNamespace(
+        config_entries=SimpleNamespace(async_get_entry=lambda _entry_id: entry))
+
+
 def test_all_tools_report_missing_data_as_errors():
-    hass = SimpleNamespace(data={})
+    hass = _hass(None)
     for factories in TOOLS_BY_ETYPE.values():
         for factory in factories:
             tool = factory(hass, "test")
@@ -39,7 +46,7 @@ def test_empty_alerts_are_success_with_featured_image():
         "coordinators": {"seoul": SimpleNamespace(data={"alerts": []})},
         "regions": [{"code": "seoul", "name": "Seoul"}],
     }
-    hass = SimpleNamespace(data={DOMAIN: {"test": store}})
+    hass = _hass(store)
     tool = GetSafetyAlertsTool(hass, "test")
     result = asyncio.run(
         tool.async_call(hass, llm.ToolInput(tool_name=tool.name, tool_args={}), None)
@@ -61,7 +68,7 @@ def test_weather_preserves_native_card_payload():
             }
         )
     }
-    hass = SimpleNamespace(data={DOMAIN: {"test": store}})
+    hass = _hass(store)
     tool = GetKMAWeatherForecastTool(hass, "test")
     result = asyncio.run(
         tool.async_call(hass, llm.ToolInput(tool_name=tool.name, tool_args={"range": "week"}), None)

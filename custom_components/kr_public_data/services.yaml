@@ -1,24 +1,16 @@
 search_pharmacy:
-  name: 약국 검색
-  description: 지역의 운영 약국 목록을 조회합니다. 약국 정보 항목이 설정되어 있어야 합니다.
   fields:
     region:
-      name: 시도
-      description: 시도명 (예. 서울특별시)
       required: true
       example: "서울특별시"
       selector:
         text:
     district:
-      name: 시군구
-      description: 시군구명 (선택, 예. 강남구)
       required: false
       example: "강남구"
       selector:
         text:
     count:
-      name: 조회 수
-      description: 최대 조회 건수
       required: false
       example: "10"
       selector:
@@ -28,71 +20,38 @@ search_pharmacy:
           mode: slider
 
 list_nearby_pharmacies:
-  name: 위치 센서 약국 모아보기
-  description: >
-    설정된 약국 정보 항목 중 "위치 센서 생성"이 켜진 지역의 약국을 지정한 위치·반경 기준으로
-    모아서 조회합니다. 개별 위치 센서 엔티티를 하나씩 열어보는 대신 한 번에 확인할 때 씁니다.
 
 get_living_index_forecast:
-  name: 생활기상지수 예보 조회
-  description: >
-    자외선지수 또는 대기정체지수의 3시간 단위 예보를 조회합니다 (최대 78시간).
-    에어코리아 항목이 설정되어 있어야 합니다.
   fields:
     index_type:
-      name: 지수 종류
-      description: 조회할 생활기상지수 종류
       required: true
       default: "uv"
       selector:
         select:
+          translation_key: living_index_type
           options:
-            - label: "자외선지수"
-              value: "uv"
-            - label: "대기정체지수"
-              value: "stagnation"
+            - "uv"
+            - "stagnation"
     region:
-      name: 지역
-      description: >
-        시도명 (예: 서울, 부산, 경기). 비워두면 설정된 기본 지역 사용.
       required: false
-      default: ""
+      example: "서울"
       selector:
         select:
           options:
-            - label: "기본 (설정 지역)"
-              value: ""
-            - label: "서울"
-              value: "서울"
-            - label: "부산"
-              value: "부산"
-            - label: "대구"
-              value: "대구"
-            - label: "인천"
-              value: "인천"
-            - label: "광주"
-              value: "광주"
-            - label: "대전"
-              value: "대전"
-            - label: "울산"
-              value: "울산"
-            - label: "세종"
-              value: "세종"
-            - label: "경기"
-              value: "경기"
-            - label: "강원"
-              value: "강원"
-            - label: "충북"
-              value: "충북"
-            - label: "충남"
-              value: "충남"
-            - label: "전북"
-              value: "전북"
-            - label: "전남"
-              value: "전남"
-            - label: "경북"
-              value: "경북"
-            - label: "경남"
-              value: "경남"
-            - label: "제주"
-              value: "제주"
+            - "서울"
+            - "부산"
+            - "대구"
+            - "인천"
+            - "광주"
+            - "대전"
+            - "울산"
+            - "세종"
+            - "경기"
+            - "강원"
+            - "충북"
+            - "충남"
+            - "전북"
+            - "전남"
+            - "경북"
+            - "경남"
+            - "제주"

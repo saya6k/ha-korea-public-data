@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-import random
+import secrets
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -74,7 +74,7 @@ def _pkcs1pad2(s: str, n: int) -> int:
     ba[n - s_len - 1] = 0
     for i in range(2, n - s_len - 1):
         while True:
-            rand_byte = random.randint(1, 255)
+            rand_byte = secrets.randbelow(255) + 1
             if rand_byte != 0:
                 ba[i] = rand_byte
                 break

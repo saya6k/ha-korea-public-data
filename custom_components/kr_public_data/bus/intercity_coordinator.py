@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -51,11 +52,11 @@ class IntercityBusCoordinator(ResilientCoordinator):
     """
     stale_tolerance = 3  # same-day schedule, less time-critical than live arrivals
 
-    def __init__(self, hass: HomeAssistant, api_key: str,
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str,
                  queries: list[dict[str, str]], grades: list[str]) -> None:
         name_key = (f"{queries[0]['depTerminalId']}_{queries[0]['arrTerminalId']}"
                     if queries else "empty")
-        super().__init__(hass, _LOGGER, name=f"intercity_bus_{name_key}",
+        super().__init__(hass, _LOGGER, config_entry=entry, name=f"intercity_bus_{name_key}",
                          update_interval=timedelta(seconds=INTERCITY_BUS_SCAN_INTERVAL))
         self._api_key = api_key
         self._queries = queries

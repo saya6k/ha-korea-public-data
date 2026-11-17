@@ -10,7 +10,10 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, SubentryFlowResult
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import (
+    async_create_clientsession,
+    async_get_clientsession,
+)
 from homeassistant.helpers.selector import (
     BooleanSelector,
     LocationSelector,
@@ -241,6 +244,73 @@ _REGION_GRID = {
 "11H20301": (102, 84),  # 울산
 "11G00201": (52, 38),   # 제주
 }
+
+# Entry types authenticated by one API key → the entry.data field holding it.
+_REAUTH_KEY_FIELD = {
+    ENTRY_WEATHER: "api_key",
+    ENTRY_TRANSIT: "seoul_api_key",
+    ENTRY_BUS: "api_key",
+    ENTRY_FUEL: "opinet_api_key",
+    ENTRY_SCHOOL: "neis_api_key",
+    ENTRY_DISASTER: "safety_api_key",
+    ENTRY_PHARMACY: "api_key",
+    ENTRY_AIRKOREA: "api_key",
+    ENTRY_KMA_WEATHER: "api_key",
+    ENTRY_EARTHQUAKE: "api_key",
+}
+
+
+async def _validate_kepco(username: str, password: str) -> str | None:
+    """Error key for a KEPCO login attempt, or None when it isn't rejected.
+
+    Only a definite rejection or a transport failure blocks the flow; an
+    unrecognized response is let through, matching entry setup.
+    """
+    from .kepco.api import KepcoApiClient
+    from .kepco.exceptions import KepcoAuthError
+    from .utils import async_import_curl_cffi
+    session = (await async_import_curl_cffi()).AsyncSession()
+    try:
+        await KepcoApiClient(session).async_login(username, password)
+    except KepcoAuthError:
+        return "invalid_auth"
+    except Exception:
+        return "cannot_connect"
+    finally:
+        await session.close()
+    return None
+
+
+async def _validate_gasapp(hass: HomeAssistant, token: str, member_id: str,
+                           contract_num: str) -> str | None:
+    """Error key for a GasApp token, or None when the API accepts it."""
+    from .gasapp.api import GasAppApiClient
+    from .gasapp.exceptions import GasAppAuthError
+    client = GasAppApiClient(async_get_clientsession(hass))
+    client.set_credentials(token, member_id, contract_num)
+    try:
+        await client.async_get_home_data()
+    except GasAppAuthError:
+        return "invalid_auth"
+    except Exception:
+        return "cannot_connect"
+    return None
+
+
+async def _validate_arisu(hass: HomeAssistant, customer_number: str,
+                          customer_name: str) -> str | None:
+    """Error key for an Arisu customer lookup, or None when a bill is found."""
+    from .arisu.api import ArisuApiClient
+    session = async_create_clientsession(hass)
+    try:
+        data = await ArisuApiClient(session).async_get_water_bill_data(
+            customer_number, customer_name)
+    except Exception:
+        return "cannot_connect"
+    finally:
+        await session.close()
+    return None if data.get("success") else "no_bill_data"
+
 
 class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -734,6 +804,11 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_kepco(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._async_abort_entries_match(
+                {CONF_ENTRY_TYPE: ENTRY_KEPCO, "username": user_input["username"]})
+            if err := await _validate_kepco(user_input["username"], user_input["password"]):
+                errors["base"] = err
+        if user_input is not None and not errors:
             return self.async_create_entry(
                 title=f"한전 ({user_input['username']})",
                 data={CONF_ENTRY_TYPE: ENTRY_KEPCO,
@@ -749,6 +824,14 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_gasapp(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._async_abort_entries_match(
+                {CONF_ENTRY_TYPE: ENTRY_GASAPP, "member_id": user_input["member_id"],
+                 "contract_num": user_input["contract_num"]})
+            if err := await _validate_gasapp(
+                    self.hass, user_input["token"], user_input["member_id"],
+                    user_input["contract_num"]):
+                errors["base"] = err
+        if user_input is not None and not errors:
             return self.async_create_entry(
                 title=f"가스앱 ({user_input['contract_num']})",
                 data={CONF_ENTRY_TYPE: ENTRY_GASAPP,
@@ -766,6 +849,13 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_arisu(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._async_abort_entries_match(
+                {CONF_ENTRY_TYPE: ENTRY_ARISU,
+                 "customer_number": user_input["customer_number"]})
+            if err := await _validate_arisu(
+                    self.hass, user_input["customer_number"], user_input["customer_name"]):
+                errors["base"] = err
+        if user_input is not None and not errors:
             return self.async_create_entry(
                 title=f"아리수 ({user_input['customer_number']})",
                 data={CONF_ENTRY_TYPE: ENTRY_ARISU,
@@ -979,35 +1069,60 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_reauth_kepco()
         if etype == ENTRY_GASAPP:
             return await self.async_step_reauth_gasapp()
+        if etype in _REAUTH_KEY_FIELD:
+            return await self.async_step_reauth_api_key()
         return self.async_abort(reason="reauth_not_supported")
+
+    async def async_step_reauth_api_key(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        if user_input is not None:
+            field = _REAUTH_KEY_FIELD[entry.data[CONF_ENTRY_TYPE]]
+            return self.async_update_reload_and_abort(
+                entry, data_updates={field: user_input["api_key"]})
+        return self.async_show_form(
+            step_id="reauth_api_key",
+            data_schema=vol.Schema({vol.Required("api_key"): _password_selector()}),
+            description_placeholders={"name": entry.title})
 
     async def async_step_reauth_kepco(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_update_reload_and_abort(
-                self._get_reauth_entry(),
-                data_updates={"username": user_input["username"],
-                              "password": user_input["password"]})
+            if err := await _validate_kepco(user_input["username"], user_input["password"]):
+                errors["base"] = err
+            else:
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(),
+                    data_updates={"username": user_input["username"],
+                                  "password": user_input["password"]})
         return self.async_show_form(step_id="reauth_kepco", data_schema=vol.Schema({
             vol.Required("username"): str,
             vol.Required("password"): _password_selector(),
-        }))
+        }), errors=errors)
 
     async def async_step_reauth_gasapp(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_update_reload_and_abort(
-                self._get_reauth_entry(),
-                data_updates={"token": user_input["token"],
-                              "member_id": user_input["member_id"],
-                              "contract_num": user_input["contract_num"]})
+            if err := await _validate_gasapp(
+                    self.hass, user_input["token"], user_input["member_id"],
+                    user_input["contract_num"]):
+                errors["base"] = err
+            else:
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(),
+                    data_updates={"token": user_input["token"],
+                                  "member_id": user_input["member_id"],
+                                  "contract_num": user_input["contract_num"]})
         return self.async_show_form(step_id="reauth_gasapp", data_schema=vol.Schema({
             vol.Required("token"): _password_selector(),
             vol.Required("member_id"): str,
             vol.Required("contract_num"): str,
-        }))
+        }), errors=errors)
 
         # ══════════ Options Flow =════════
 
@@ -1700,7 +1815,7 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
             # Merge new options into data
             new_data = {**self._entry.data, **user_input}
             self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data={})
 
         schema = await self._build_schema(etype)
         if schema is None:

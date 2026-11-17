@@ -231,6 +231,13 @@
         "data": {
           "routes": "Routes"
         }
+      },
+      "reauth_api_key": {
+        "title": "API key re-authentication",
+        "description": "The API key stored for {name} was rejected. Enter a valid key.",
+        "data": {
+          "api_key": "API key"
+        }
       }
     },
     "error": {
@@ -238,7 +245,9 @@
       "invalid_api_key": "Invalid key.",
       "no_schools_found": "No schools.",
       "no_selection": "Select one.",
-      "no_stations_found": "No stations found."
+      "no_stations_found": "No stations found.",
+      "invalid_auth": "Invalid credentials.",
+      "no_bill_data": "No bill was found for this customer number and name."
     },
     "abort": {
       "already_configured": "Already configured.",
@@ -909,6 +918,11 @@
       "school_class": {
         "name": "Grade {grade} class {class} schedule"
       }
+    },
+    "geo_location": {
+      "disaster_message": {
+        "name": "Disaster message"
+      }
     }
   },
   "device": {
@@ -974,6 +988,52 @@
     },
     "weather_warning": {
       "name": "Weather warnings - {area}"
+    }
+  },
+  "selector": {
+    "living_index_type": {
+      "options": {
+        "uv": "UV index",
+        "stagnation": "Air stagnation index"
+      }
+    }
+  },
+  "services": {
+    "search_pharmacy": {
+      "name": "Search pharmacies",
+      "description": "Lists the pharmacies operating in a region. Requires a pharmacy entry.",
+      "fields": {
+        "region": {
+          "name": "Province",
+          "description": "Province or metropolitan city name (e.g. 서울특별시)."
+        },
+        "district": {
+          "name": "District",
+          "description": "District name (optional, e.g. 강남구)."
+        },
+        "count": {
+          "name": "Count",
+          "description": "Maximum number of results."
+        }
+      }
+    },
+    "list_nearby_pharmacies": {
+      "name": "List nearby pharmacies",
+      "description": "Collects the pharmacies within the configured location and radius for every region that has location sensors enabled, instead of opening each location sensor one by one."
+    },
+    "get_living_index_forecast": {
+      "name": "Get living weather index forecast",
+      "description": "Returns the UV index or air stagnation index forecast in 3-hour steps (up to 78 hours). Requires an AirKorea entry.",
+      "fields": {
+        "index_type": {
+          "name": "Index type",
+          "description": "Which living weather index to query."
+        },
+        "region": {
+          "name": "Region",
+          "description": "Province short name (e.g. 서울, 부산, 경기). Leave empty to use the configured region."
+        }
+      }
     }
   }
 }

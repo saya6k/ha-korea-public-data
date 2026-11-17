@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -20,9 +21,9 @@ _LOGGER = logging.getLogger(__name__)
 class FuelCoordinator(ResilientCoordinator):
     stale_tolerance = 6  # prices move on a daily cadence
 
-    def __init__(self, hass: HomeAssistant, api_key: str,
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str,
                  configs: list[dict[str, str]]) -> None:
-        super().__init__(hass, _LOGGER, name="fuel",
+        super().__init__(hass, _LOGGER, config_entry=entry, name="fuel",
                          update_interval=timedelta(seconds=FUEL_SCAN_INTERVAL))
         self._api_key = api_key
         self._configs = configs  # [{"sido_code": ..., "fuel_code": ...}, ...]

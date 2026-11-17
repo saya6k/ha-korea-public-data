@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -19,9 +20,9 @@ class SeoulBusCoordinator(ResilientCoordinator):
     """One coordinator per stop - keyed by busRouteId, no client-side sort needed."""
     stale_tolerance = 2  # arrival times are useless once stale
 
-    def __init__(self, hass: HomeAssistant, api_key: str, ars_id: str,
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str, ars_id: str,
                  route_ids: list[str]) -> None:
-        super().__init__(hass, _LOGGER, name=f"seoul_bus_{ars_id}",
+        super().__init__(hass, _LOGGER, config_entry=entry, name=f"seoul_bus_{ars_id}",
                          update_interval=timedelta(seconds=CITY_BUS_SCAN_INTERVAL))
         self._api_key = api_key
         self._ars_id = ars_id

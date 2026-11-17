@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from custom_components.kr_public_data.resilience import ResilientCoordinator
@@ -46,8 +47,8 @@ class DisasterCoordinator(ResilientCoordinator[list[dict[str, Any]]]):
     # safetydata.go.kr flaps often; a blip must not read as "no alerts".
     stale_tolerance = 5
 
-    def __init__(self, hass: HomeAssistant, api_key: str) -> None:
-        super().__init__(hass, _LOGGER, name="disaster",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="disaster",
                          update_interval=timedelta(seconds=DISASTER_SCAN_INTERVAL))
         self._api_key = api_key
 

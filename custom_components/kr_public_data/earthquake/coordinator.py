@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -17,8 +18,8 @@ _LOGGER = logging.getLogger(__name__)
 class EarthquakeCoordinator(ResilientCoordinator[list[dict]]):
     stale_tolerance = 3
 
-    def __init__(self, hass: HomeAssistant, api_key: str) -> None:
-        super().__init__(hass, _LOGGER, name="earthquake",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="earthquake",
                          update_interval=timedelta(seconds=SCAN_INTERVAL))
         self._api_key = api_key
         self._session = async_get_clientsession(hass)

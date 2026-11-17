@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -19,9 +20,9 @@ class SubwayCoordinator(ResilientCoordinator):
     """One coordinator per station - fetches bulk, filters per direction/line."""
     stale_tolerance = 2  # arrival times are useless once stale
 
-    def __init__(self, hass: HomeAssistant, api_key: str, station: str,
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api_key: str, station: str,
                  subscriptions: list[dict]) -> None:
-        super().__init__(hass, _LOGGER, name=f"subway_{station}",
+        super().__init__(hass, _LOGGER, config_entry=entry, name=f"subway_{station}",
                          update_interval=timedelta(seconds=SUBWAY_SCAN_INTERVAL))
         self._api_key = api_key
         self._station = station

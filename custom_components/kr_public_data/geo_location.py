@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_DISASTER
+from .const import CONF_ENTRY_TYPE, ENTRY_DISASTER
 
 if TYPE_CHECKING:
     from homeassistant.helpers.entity import Entity
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
     etype = entry.data.get(CONF_ENTRY_TYPE)
-    store = hass.data[DOMAIN][entry.entry_id]
+    store = entry.runtime_data
 
     if etype == ENTRY_DISASTER:
         from .disaster.device import region_label

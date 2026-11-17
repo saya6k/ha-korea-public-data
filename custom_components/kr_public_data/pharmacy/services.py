@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import ServiceCall, ServiceResponse
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -33,9 +33,9 @@ async def async_list_nearby_pharmacies(call: ServiceCall) -> ServiceResponse:
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.data.get(CONF_ENTRY_TYPE) != ENTRY_PHARMACY:
             continue
-        store = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-        if not store:
+        if entry.state is not ConfigEntryState.LOADED:
             continue
+        store = entry.runtime_data
         for i, region in enumerate(store.get("regions", [])):
             if not region.get("location_sensors"):
                 continue

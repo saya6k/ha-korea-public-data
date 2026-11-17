@@ -8,7 +8,7 @@ from typing import Any
 
 from aiohttp import ClientSession
 
-from custom_components.kr_public_data.exceptions import KrQuotaError
+from custom_components.kr_public_data.exceptions import KrAuthError, KrQuotaError
 from custom_components.kr_public_data.utils import KST
 
 from . import ENDPOINTS, NEIS_BASE
@@ -37,8 +37,10 @@ class NeisApiClient:
                 # NEIS's own code space doesn't map onto raise_for_result_code
                 # (data.go.kr's "22"/"30-32"); match its daily-traffic-limit
                 # phrasing directly since we haven't confirmed the exact code live.
-                if "트래픽" in msg and "제한" in msg:
+                if code == "ERROR-337" or ("트래픽" in msg and "제한" in msg):
                     raise KrQuotaError(f"NEIS {code}: {msg}")
+                if code == "ERROR-290":  # 인증키가 유효하지 않습니다
+                    raise KrAuthError(f"NEIS {code}: {msg}")
                 raise Exception(f"NEIS {code}: {msg}")
         rows = []
         for row in root.findall(".//row"):

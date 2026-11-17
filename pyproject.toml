@@ -61,6 +61,10 @@ allowed-confusables = ["×"]
 # otherwise carry. These predate that refactor.
 "custom_components/kr_public_data/arisu/sensor.py" = ["PLR0913", "PLR0917"]
 "custom_components/kr_public_data/bus/intercity_sensor.py" = ["PLR0913", "PLR0917"]
+# Coordinators take the config entry explicitly (HA no longer infers it), which
+# pushes these two constructors one argument past the cap.
+"custom_components/kr_public_data/airkorea/coordinator.py" = ["PLR0913"]
+"custom_components/kr_public_data/bus/city_coordinator.py" = ["PLR0913"]
 "custom_components/kr_public_data/gasapp/device.py" = ["PLR0913", "PLR0917"]
 "custom_components/kr_public_data/gasapp/sensor.py" = ["PLR0913", "PLR0917"]
 "custom_components/kr_public_data/kepco/sensor.py" = ["PLR0913", "PLR0917"]

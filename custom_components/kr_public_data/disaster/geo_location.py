@@ -14,6 +14,7 @@ from typing import Any
 from homeassistant.components.geo_location import GeolocationEvent
 from homeassistant.core import callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.location import distance
 
 from custom_components.kr_public_data.const import DOMAIN
 
@@ -78,7 +79,9 @@ class DisasterGeoLocationManager:
         for m in msgs:
             key = _msg_key(self._label, m)
             if key not in self._active:
-                ent = DisasterGeoLocationEntity(m, self._sido, self._label, key)
+                config = self._coordinator.hass.config
+                ent = DisasterGeoLocationEntity(
+                    m, self._sido, self._label, key, (config.latitude, config.longitude))
                 self._active[key] = ent
                 new_entities.append(ent)
         if new_entities:
@@ -95,12 +98,21 @@ class DisasterGeoLocationEntity(GeolocationEvent):
     _attr_source = "kr_public_data_disaster"
     _attr_should_poll = False
 
-    def __init__(self, message: dict, sido: str, label: str, key: str) -> None:
+    def __init__(self, message: dict, sido: str, label: str, key: str,
+                 home: tuple[float, float]) -> None:
         self._message = message
         self._attr_unique_id = f"{DOMAIN}_disaster_geo_{key}"
-        self._attr_name = message.get("disaster_type") or "재난문자"
+        # The disaster type is API data; only the fallback label is ours to
+        # translate (never set both — _attr_name would win).
+        if dtype := message.get("disaster_type"):
+            self._attr_name = dtype
+        else:
+            self._attr_translation_key = "disaster_message"
         self._attr_device_info = disaster_device(label)
         self._attr_latitude, self._attr_longitude = SIDO_CENTROIDS.get(sido, (None, None))
+        if self._attr_latitude is not None:
+            meters = distance(*home, self._attr_latitude, self._attr_longitude)
+            self._attr_distance = round(meters / 1000, 1) if meters is not None else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

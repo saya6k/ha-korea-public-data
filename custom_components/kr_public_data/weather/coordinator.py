@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -22,8 +23,9 @@ class WeatherWarningCoordinator(ResilientCoordinator):
     # previous state and sustained total failure surfaces as unavailable.
     stale_tolerance = 3
 
-    def __init__(self, hass: HomeAssistant, api_key: str, area_codes: list[str]) -> None:
-        super().__init__(hass, _LOGGER, name="kr_weather",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 api_key: str, area_codes: list[str]) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="kr_weather",
                          update_interval=timedelta(seconds=WARNING_SCAN_SEC))
         self._api_key = api_key
         self._area_codes = area_codes

@@ -3,13 +3,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_AIRKOREA, ENTRY_SCHOOL, ENTRY_WEATHER
+from .const import CONF_ENTRY_TYPE, ENTRY_AIRKOREA, ENTRY_SCHOOL, ENTRY_WEATHER
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
     etype = entry.data.get(CONF_ENTRY_TYPE)
-    store = hass.data[DOMAIN][entry.entry_id]
+    store = entry.runtime_data
 
     if etype == ENTRY_WEATHER:
         from .weather.calendar import KMAWeatherCalendar

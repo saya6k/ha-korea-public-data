@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -20,9 +21,10 @@ _LOGGER = logging.getLogger(__name__)
 class AirKoreaCoordinator(ResilientCoordinator):
     stale_tolerance = 4
 
-    def __init__(self, hass: HomeAssistant, api_key: str, stations: list[dict[str, Any]],
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 api_key: str, stations: list[dict[str, Any]],
                  living_api_key: str = "", sido: str = "") -> None:
-        super().__init__(hass, _LOGGER, name="airkorea",
+        super().__init__(hass, _LOGGER, config_entry=entry, name="airkorea",
                          update_interval=timedelta(seconds=SCAN_INTERVAL))
         self._api_key = api_key
         self._stations = stations

@@ -16,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BaseKRTool(llm.Tool):
-    """Reads its bound config entry's coordinator data via hass.data."""
+    """Reads its bound config entry's coordinator data via entry.runtime_data."""
 
     integration = DOMAIN
     annotations = llm.ToolAnnotations(
@@ -32,7 +32,8 @@ class BaseKRTool(llm.Tool):
 
     @property
     def store(self) -> dict[str, Any]:
-        return self.hass.data.get(DOMAIN, {}).get(self.entry_id, {})
+        entry = self.hass.config_entries.async_get_entry(self.entry_id)
+        return getattr(entry, "runtime_data", None) or {}
 
     def envelope(self, **fields: Any) -> llm.ToolResult:
         """Build a standard response envelope for tools without a card UI."""

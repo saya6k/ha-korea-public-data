@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -18,8 +19,9 @@ _LOGGER = logging.getLogger(__name__)
 class PharmacyCoordinator(ResilientCoordinator[list[dict[str, Any]]]):
     stale_tolerance = 6  # opening hours change daily at most
 
-    def __init__(self, hass: HomeAssistant, api_key: str, q0: str, q1: str = "") -> None:
-        super().__init__(hass, _LOGGER, name="pharmacy",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 api_key: str, q0: str, q1: str = "") -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="pharmacy",
                          update_interval=timedelta(seconds=PHARMACY_SCAN_INTERVAL))
         self._api_key = api_key
         self._q0 = q0

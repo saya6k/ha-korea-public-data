@@ -47,7 +47,7 @@ class GasAppApiClient:
             data = await self.async_get_home_data()
             return data is not None
         except Exception as e:
-            _LOGGER.error(f"Credential validation failed: {e}")
+            _LOGGER.debug("Credential validation failed: %s", e)
             return False
 
     async def _request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
@@ -59,7 +59,7 @@ class GasAppApiClient:
             async with self._session.request(
                 method, url, headers=headers, **kwargs
             ) as response:
-                _LOGGER.debug(f"GasApp API request to {url} status: {response.status}")
+                _LOGGER.debug("GasApp API request to %s status: %s", url, response.status)
 
                 if response.status == 401:
                     raise GasAppAuthError("Authentication failed")
@@ -77,10 +77,8 @@ class GasAppApiClient:
             # Already classified (401/403 → GasAppAuthError drives reauth).
             raise
         except aiohttp.ClientError as e:
-            _LOGGER.error(f"GasApp API request failed: {e}")
             raise GasAppConnectionError(f"Request failed: {e}") from e
         except Exception as e:
-            _LOGGER.error(f"Unexpected error in GasApp API request: {e}")
             raise GasAppDataError(f"Unexpected error: {e}") from e
 
     async def async_get_home_data(self) -> dict[str, Any]:
@@ -104,7 +102,6 @@ class GasAppApiClient:
                 return home_data["cards"]["bill"].get("history", [])
             return None
         except Exception as e:
-            _LOGGER.error(f"Failed to get bill history: {e}")
             raise GasAppDataError(f"Failed to get bill history: {e}") from e
 
     async def async_get_current_bill(self) -> dict[str, Any] | None:
@@ -115,5 +112,4 @@ class GasAppApiClient:
                 return home_data["cards"]["bill"]
             return None
         except Exception as e:
-            _LOGGER.error(f"Failed to get current bill: {e}")
             raise GasAppDataError(f"Failed to get current bill: {e}") from e

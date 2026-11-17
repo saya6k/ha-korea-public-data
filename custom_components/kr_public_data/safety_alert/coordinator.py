@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from custom_components.kr_public_data.resilience import ResilientCoordinator
@@ -20,8 +21,8 @@ class SafetyAlertCoordinator(ResilientCoordinator):
     # "all clear"), but surface sustained failure honestly.
     stale_tolerance = 4
 
-    def __init__(self, hass: HomeAssistant, area_code: str) -> None:
-        super().__init__(hass, _LOGGER, name=f"safety_alert_{area_code}",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, area_code: str) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name=f"safety_alert_{area_code}",
                          update_interval=timedelta(seconds=SAFETY_SCAN_INTERVAL))
         self._area_code = area_code
 

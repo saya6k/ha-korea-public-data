@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from custom_components.kr_public_data.exceptions import KrAuthError
@@ -19,8 +20,9 @@ _LOGGER = logging.getLogger(__name__)
 class KepcoCoordinator(ResilientCoordinator):
     stale_tolerance = 4
 
-    def __init__(self, hass: HomeAssistant, username: str, password: str) -> None:
-        super().__init__(hass, _LOGGER, name="kepco",
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry,
+                 username: str, password: str) -> None:
+        super().__init__(hass, _LOGGER, config_entry=entry, name="kepco",
                          update_interval=timedelta(seconds=KEPCO_SCAN_INTERVAL))
         self._hass = hass
         self._username = username
@@ -60,3 +62,10 @@ class KepcoCoordinator(ResilientCoordinator):
             except Exception as retry_err:
                 _LOGGER.debug("KEPCO retry failed: %s", retry_err)
             raise
+
+    async def async_shutdown(self) -> None:
+        """Close the curl_cffi session (runs on entry unload)."""
+        await super().async_shutdown()
+        session, self._session, self._client = self._session, None, None
+        if session is not None:
+            await session.close()
