@@ -11,6 +11,7 @@ from typing import Any
 import aiohttp
 
 from custom_components.kr_public_data.exceptions import (
+    KrTransientError,
     raise_for_gateway_error,
     raise_for_result_code,
 )
@@ -25,7 +26,9 @@ async def fetch_earthquakes(
     session: aiohttp.ClientSession, api_key: str, count: int = 20
 ) -> list[dict]:
     end = datetime.now(KST)
-    start = end - timedelta(days=30)
+    # The API rejects any window starting more than 3 days back
+    # (resultCode 99, verified live 2026-11-17).
+    start = end - timedelta(days=3)
     params = {"serviceKey": api_key, "numOfRows": str(count), "pageNo": "1",
               "dataType": "JSON",
               "fromTmFc": start.strftime("%Y%m%d"),
@@ -37,7 +40,10 @@ async def fetch_earthquakes(
     try:
         data = json.loads(text)
         header = data.get("response", {}).get("header", {})
-        raise_for_result_code(header.get("resultCode"), header.get("resultMsg", ""))
+        rc = header.get("resultCode")
+        raise_for_result_code(rc, header.get("resultMsg", ""))
+        if rc not in (None, "00", "03"):
+            raise KrTransientError(f"지진정보 resultCode {rc}: {header.get('resultMsg', '')}")
         total = data.get("response", {}).get("body", {}).get("totalCount", 0)
         if total == 0:
             return []

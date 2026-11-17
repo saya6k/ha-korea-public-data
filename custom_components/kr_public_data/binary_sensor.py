@@ -120,14 +120,14 @@ def _add_bus(hass: HomeAssistant, entry: ConfigEntry, store: dict,
         seoul_bus_route_device,
     )
     for sub_id, info in (store.get("stop_subs") or {}).items():
-        node_id, node_name = info["nodeId"], info["nodeName"]
+        node_id = info["nodeId"]
         seoul = info["kind"] == "seoul"
         route_device = seoul_bus_route_device if seoul else city_bus_route_device
         hub_id = bus_stop_device_id(hass, entry, sub_id, info)
         async_add_entities(
             [BusRouteRunningBinarySensor(
                 info["coordinator"], bus_stop_key(info), r["routeId"],
-                route_device(node_id, node_name, r["routeId"], r["routeNo"], hub_id),
+                route_device(node_id, r["routeId"], r["routeNo"], hub_id),
                 seoul=seoul)
              for r in info["routes"]],
             config_subentry_id=sub_id)
