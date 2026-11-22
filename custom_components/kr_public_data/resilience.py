@@ -10,13 +10,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
+import sys
 from datetime import datetime, timedelta
 from typing import Any
 
+import aiohttp
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
+
+try:  # HA 2026.12+: logs the outage once at info instead of error.
+    from homeassistant.helpers.update_coordinator import UpdateFailedUnreachable
+except ImportError:  # older cores
+    UpdateFailedUnreachable = UpdateFailed  # type: ignore[assignment,misc]
 
 from .const import DOMAIN
 from .exceptions import KrAuthError, KrQuotaError
@@ -37,6 +45,31 @@ def _describe(err: Exception) -> str:
     logged/raised messages look blank and hides the actual cause.
     """
     return str(err) or type(err).__name__
+
+
+def _is_unreachable(err: BaseException) -> bool:
+    """Whether err (or anything it wraps) is a network-level failure.
+
+    API modules wrap transport errors in their own types (KrTransientError,
+    SafetyAlertConnectionError, ...), so walk the __cause__/__context__ chain.
+    HTTP status, parse and result-code errors don't count: the server answered.
+    """
+    types: tuple[type[BaseException], ...] = (
+        TimeoutError, ConnectionError, socket.gaierror, aiohttp.ClientConnectionError)
+    # Never import curl_cffi here (heavy C extension); if no API loaded it,
+    # none of its errors can be in the chain. All its errors subclass OSError
+    # (HTTPError too), so match only the connection/timeout branches.
+    if cffi_exc := sys.modules.get("curl_cffi.requests.exceptions"):
+        types += tuple(t for t in (getattr(cffi_exc, "ConnectionError", None),
+                                   getattr(cffi_exc, "Timeout", None)) if t)
+    seen: set[int] = set()
+    cur: BaseException | None = err
+    while cur is not None and id(cur) not in seen:
+        if isinstance(cur, types):
+            return True
+        seen.add(id(cur))
+        cur = cur.__cause__ or cur.__context__
+    return False
 
 
 class ResilientCoordinator[DataT](DataUpdateCoordinator[DataT]):
@@ -85,7 +118,8 @@ class ResilientCoordinator[DataT](DataUpdateCoordinator[DataT]):
                     "%s: transient API error (%d/%d), serving stale data: %s",
                     self.name, self._consecutive_failures, self.stale_tolerance, _describe(err))
                 return self.data
-            raise UpdateFailed(f"{self.name}: {_describe(err)}") from err
+            exc = UpdateFailedUnreachable if _is_unreachable(err) else UpdateFailed
+            raise exc(f"{self.name}: {_describe(err)}") from err
 
         self._consecutive_failures = 0
         self.last_success_time = dt_util.utcnow()
