@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import ServiceCall, ServiceResponse
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from custom_components.kr_public_data.const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_PHARMACY
+from ..const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_PHARMACY
 
 from .api import fetch_pharmacies
 from .sensor import pharmacies_within_radius
