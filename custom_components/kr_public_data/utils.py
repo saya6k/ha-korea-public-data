@@ -23,9 +23,15 @@ async def async_import_curl_cffi() -> Any:
 
     curl_cffi loads a large C extension on first import, which must not
     happen on the event loop. Later calls are a ``sys.modules`` hit.
+
+    A module lands in ``sys.modules`` *before* it finishes executing, so
+    while another thread (e.g. KEPCO's executor job) is mid-import we'd see
+    a partial module without ``AsyncSession``. Only trust the cached entry
+    once it's complete; otherwise ``import_module`` blocks (in the executor)
+    on the import lock until the other thread finishes.
     """
     mod = sys.modules.get("curl_cffi.requests")
-    if mod is None:
+    if getattr(mod, "AsyncSession", None) is None:
         mod = await asyncio.get_running_loop().run_in_executor(
             None, importlib.import_module, "curl_cffi.requests")
     return mod
