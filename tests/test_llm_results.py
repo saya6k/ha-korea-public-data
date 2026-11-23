@@ -11,6 +11,7 @@ from custom_components.kr_public_data.const import DOMAIN
 from custom_components.kr_public_data.llm.kma_weather_tool import GetKMAWeatherForecastTool
 from custom_components.kr_public_data.llm.safety_alert_tool import GetSafetyAlertsTool
 from custom_components.kr_public_data.llm.tools import TOOLS_BY_ETYPE
+from custom_components.kr_public_data.llm.transit_tool import GetSubwayArrivalsTool
 
 
 def _hass(store):
@@ -111,3 +112,34 @@ def test_weather_asks_which_region_when_ambiguous():
     result = _two_region_weather()()
     assert result.error
     assert "부산광역시 해운대구" in result.data["error"]
+
+
+def _subway(*stations):
+    coords = {s: SimpleNamespace(data={"상행_1002": []}) for s in stations}
+    hass = _hass({"subway_coords": coords})
+    tool = GetSubwayArrivalsTool(hass, "test")
+
+    def call(**args):
+        return asyncio.run(tool.async_call(
+            hass, llm.ToolInput(tool_name=tool.name, tool_args=args), None))
+    return call
+
+
+def test_subway_single_station_needs_no_name():
+    assert _subway("강남")().data["station"] == "강남"
+
+
+def test_subway_matches_name_with_station_suffix():
+    assert _subway("강남", "역삼")(station="역삼역").data["station"] == "역삼"
+
+
+def test_subway_asks_which_station_when_ambiguous():
+    result = _subway("강남", "역삼")()
+    assert result.error
+    assert "역삼" in result.data["error"]
+
+
+def test_subway_lists_stations_for_unknown_name():
+    result = _subway("강남", "역삼")(station="잠실")
+    assert result.error
+    assert "강남" in result.data["error"]

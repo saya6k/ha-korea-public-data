@@ -27,6 +27,20 @@ def _seconds_to_min(seconds: Any) -> str:
     return f"{s // 60}m"
 
 
+def _resolve_station(stations: list[str], wanted: str | None) -> tuple[str | None, str | None]:
+    """Pick a configured station; '강남역' matches '강남'. Returns (station, error)."""
+    listed = ", ".join(stations)
+    if not wanted:
+        if len(stations) == 1:
+            return stations[0], None
+        return None, f"등록된 역이 여러 개입니다. 어느 역인지 물어보세요: {listed}"
+    target = wanted.strip().removesuffix("역")
+    for station in stations:
+        if station.removesuffix("역") == target:
+            return station, None
+    return None, f"'{wanted}' 역이 등록되어 있지 않습니다. 등록된 역: {listed}"
+
+
 class GetSubwayArrivalsTool(BaseKRTool):
     service = ENTRY_TRANSIT
     name = "kr_public_data__get_subway_arrivals"
@@ -40,8 +54,8 @@ class GetSubwayArrivalsTool(BaseKRTool):
             vol.Optional(
                 "station",
                 description=(
-                    "Station name (Korean, e.g. '강남'). Omit to use the "
-                    "first configured station."
+                    "Station name (Korean, e.g. '강남'). Required when more "
+                    "than one station is configured."
                 ),
             ): str,
         }
@@ -58,13 +72,9 @@ class GetSubwayArrivalsTool(BaseKRTool):
         if not coords:
             return self.error("등록된 지하철 역이 없습니다.")
 
-        wanted = tool_input.tool_args.get("station")
-        if wanted is None:
-            station = next(iter(coords.keys()))
-        elif wanted in coords:
-            station = wanted
-        else:
-            return self.error(f"'{wanted}' 역이 등록되어 있지 않습니다.")
+        station, err = _resolve_station(list(coords), tool_input.tool_args.get("station"))
+        if err:
+            return self.error(err)
 
         coord = coords[station]
         if coord.data is None:

@@ -59,8 +59,9 @@ API_PROMPTS: dict[str, str] = {
     ),
     ENTRY_TRANSIT: (
         "Use kr_public_data__get_subway_arrivals for Seoul subway arrivals at configured "
-        "stations. The user may say 'when is the next subway/train' — pick "
-        "the first configured station if they don't name one."
+        "stations. The user may say 'when is the next subway/train' — omit "
+        "the station if they don't name one; if the tool says several are "
+        "configured, ask which."
     ),
     ENTRY_FUEL: (
         "Use kr_public_data__get_fuel_prices to retrieve the latest national average and "
