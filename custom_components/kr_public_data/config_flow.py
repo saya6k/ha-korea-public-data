@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from typing import Any
 
@@ -258,6 +259,49 @@ _REAUTH_KEY_FIELD = {
     ENTRY_KMA_WEATHER: "api_key",
     ENTRY_EARTHQUAKE: "api_key",
 }
+
+
+async def _validate_api_key(hass: HomeAssistant, entry: ConfigEntry, api_key: str) -> bool:
+    """Whether the service behind ``entry`` accepts ``api_key`` (reauth)."""
+    session = async_get_clientsession(hass)
+    etype = entry.data[CONF_ENTRY_TYPE]
+    if etype == ENTRY_WEATHER:
+        from .weather.api import validate_kma_api
+        areas = [sub.data["area_code"] for sub in entry.subentries.values()]
+        area = (areas or entry.data.get("area_codes") or ["L1100100"])[0]
+        return await validate_kma_api(session, api_key, area)
+    if etype == ENTRY_TRANSIT:
+        from .transit.subway_api import validate_seoul_api
+        return await validate_seoul_api(session, api_key)
+    if etype == ENTRY_BUS:
+        from .bus.api import validate_bus_api
+        return await validate_bus_api(session, api_key)
+    if etype == ENTRY_FUEL:
+        from .fuel.api import validate_opinet
+        return await validate_opinet(session, api_key)
+    if etype == ENTRY_DISASTER:
+        from .disaster.api import validate_disaster_api
+        return await validate_disaster_api(api_key)
+    if etype == ENTRY_PHARMACY:
+        from .pharmacy.api import validate_pharmacy_api
+        return await validate_pharmacy_api(session, api_key)
+    from .exceptions import KrApiError
+    try:
+        if etype == ENTRY_SCHOOL:
+            from .school.api import NeisApiClient
+            await NeisApiClient(session, api_key).search_school("서울")
+        elif etype == ENTRY_AIRKOREA:
+            from .airkorea.api import fetch_forecast
+            await fetch_forecast(session, api_key)
+        elif etype == ENTRY_KMA_WEATHER:
+            from .kma_weather.api import fetch_vilage_forecast
+            await fetch_vilage_forecast(session, api_key, *_REGION_GRID["11B10101"])
+        elif etype == ENTRY_EARTHQUAKE:
+            from .earthquake.api import fetch_earthquakes
+            await fetch_earthquakes(session, api_key, count=1)
+    except (aiohttp.ClientError, TimeoutError, ET.ParseError, KrApiError):
+        return False
+    return True
 
 
 async def _validate_kepco(username: str, password: str) -> str | None:
@@ -1063,9 +1107,19 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_earthquake(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        from .earthquake.api import fetch_earthquakes
+        from .exceptions import KrApiError, KrAuthError
         errors: dict[str, str] = {}
         if user_input is not None:
             self._abort_if_key_configured(ENTRY_EARTHQUAKE, "api_key", user_input["api_key"])
+            try:
+                await fetch_earthquakes(
+                    async_get_clientsession(self.hass), user_input["api_key"], count=1)
+            except KrAuthError:
+                errors["base"] = "invalid_auth"
+            except (aiohttp.ClientError, TimeoutError, KrApiError):
+                errors["base"] = "cannot_connect"
+        if user_input is not None and not errors:
             loc = user_input["location"]
             return self.async_create_entry(title="지진 정보",
                 data={CONF_ENTRY_TYPE: ENTRY_EARTHQUAKE,
@@ -1100,14 +1154,17 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
         if user_input is not None:
-            field = _REAUTH_KEY_FIELD[entry.data[CONF_ENTRY_TYPE]]
-            return self.async_update_reload_and_abort(
-                entry, data_updates={field: user_input["api_key"]})
+            if await _validate_api_key(self.hass, entry, user_input["api_key"]):
+                field = _REAUTH_KEY_FIELD[entry.data[CONF_ENTRY_TYPE]]
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={field: user_input["api_key"]})
+            errors["base"] = "cannot_connect"
         return self.async_show_form(
             step_id="reauth_api_key",
             data_schema=vol.Schema({vol.Required("api_key"): _password_selector()}),
-            description_placeholders={"name": entry.title})
+            description_placeholders={"name": entry.title}, errors=errors)
 
     async def async_step_reauth_kepco(
         self, user_input: dict[str, Any] | None = None
@@ -1150,6 +1207,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # ══════════ Options Flow =════════
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> KRPublicDataOptionsFlow:
         return KRPublicDataOptionsFlow(config_entry)
 
