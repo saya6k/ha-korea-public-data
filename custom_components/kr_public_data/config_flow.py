@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from typing import Any
 
@@ -267,15 +268,18 @@ async def _validate_kepco(username: str, password: str) -> str | None:
     unrecognized response is let through, matching entry setup.
     """
     from .kepco.api import KepcoApiClient
-    from .kepco.exceptions import KepcoAuthError
+    from .kepco.exceptions import KepcoApiError, KepcoAuthError
     from .utils import async_import_curl_cffi
     session = (await async_import_curl_cffi()).AsyncSession()
     try:
         await KepcoApiClient(session).async_login(username, password)
     except KepcoAuthError:
         return "invalid_auth"
-    except Exception:
+    except (OSError, KepcoApiError):  # curl_cffi's RequestException is an OSError
         return "cannot_connect"
+    except Exception:
+        _LOGGER.exception("Unexpected error validating KEPCO login")
+        return "unknown"
     finally:
         await session.close()
     return None
@@ -285,15 +289,18 @@ async def _validate_gasapp(hass: HomeAssistant, token: str, member_id: str,
                            contract_num: str) -> str | None:
     """Error key for a GasApp token, or None when the API accepts it."""
     from .gasapp.api import GasAppApiClient
-    from .gasapp.exceptions import GasAppAuthError
+    from .gasapp.exceptions import GasAppAuthError, GasAppError
     client = GasAppApiClient(async_get_clientsession(hass))
     client.set_credentials(token, member_id, contract_num)
     try:
         await client.async_get_home_data()
     except GasAppAuthError:
         return "invalid_auth"
-    except Exception:
+    except GasAppError:
         return "cannot_connect"
+    except Exception:
+        _LOGGER.exception("Unexpected error validating GasApp token")
+        return "unknown"
     return None
 
 
@@ -301,12 +308,16 @@ async def _validate_arisu(hass: HomeAssistant, customer_number: str,
                           customer_name: str) -> str | None:
     """Error key for an Arisu customer lookup, or None when a bill is found."""
     from .arisu.api import ArisuApiClient
+    from .arisu.exceptions import ArisuError
     session = async_create_clientsession(hass)
     try:
         data = await ArisuApiClient(session).async_get_water_bill_data(
             customer_number, customer_name)
-    except Exception:
+    except ArisuError:
         return "cannot_connect"
+    except Exception:
+        _LOGGER.exception("Unexpected error looking up Arisu bill")
+        return "unknown"
     finally:
         await session.close()
     return None if data.get("success") else "no_bill_data"
@@ -615,13 +626,18 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._data = {CONF_ENTRY_TYPE: ENTRY_SCHOOL,
                           "neis_api_key": api_key,
                           "school_level": user_input["school_level"]}
+            from .exceptions import KrApiError, KrAuthError
+            from .school.api import NeisApiClient
             try:
-                session = async_get_clientsession(self.hass)
-                from .school.api import NeisApiClient
-                c = NeisApiClient(session, api_key)
-                await c.search_school("서울")
-            except Exception:
+                await NeisApiClient(
+                    async_get_clientsession(self.hass), api_key).search_school("서울")
+            except KrAuthError:
                 errors["neis_api_key"] = "invalid_api_key"
+            except (aiohttp.ClientError, TimeoutError, ET.ParseError, KrApiError):
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error validating NEIS key")
+                errors["base"] = "unknown"
             if not errors:
                 return await self.async_step_school_search()
         return self.async_show_form(

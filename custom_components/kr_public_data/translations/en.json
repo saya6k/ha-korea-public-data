@@ -247,7 +247,8 @@
       "no_selection": "Select one.",
       "no_stations_found": "No stations found.",
       "invalid_auth": "Invalid credentials.",
-      "no_bill_data": "No bill was found for this customer number and name."
+      "no_bill_data": "No bill was found for this customer number and name.",
+      "unknown": "Unexpected error."
     },
     "abort": {
       "already_configured": "Already configured.",

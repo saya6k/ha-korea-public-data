@@ -1,6 +1,8 @@
 """한국 공공데이터 - unified Korean public data integration."""
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -44,6 +46,8 @@ PLATFORM_MAP = {
     ENTRY_EARTHQUAKE: [Platform.EVENT],
     ENTRY_BUS: [Platform.SENSOR, Platform.BINARY_SENSOR],
 }
+
+_LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -169,16 +173,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from homeassistant.exceptions import ConfigEntryAuthFailed
 
         from .kepco.coordinator import KepcoCoordinator
-        from .kepco.exceptions import KepcoAuthError
+        from .kepco.exceptions import KepcoApiError, KepcoAuthError
         c = KepcoCoordinator(hass, entry, entry.data["username"], entry.data["password"])
         try:
             await c.async_login()
         except KepcoAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
-        except Exception:
-            # Network flakiness must not block the entry: it loads with stale
-            # data and the coordinator retries on schedule.
-            pass
+        except (OSError, KepcoApiError) as err:
+            # Network flakiness must not block the entry: the first refresh
+            # logs in again and the coordinator retries on schedule.
+            _LOGGER.debug("KEPCO login failed, leaving it to the first refresh: %s", err)
         await c.async_config_entry_first_refresh()
         store = {"coordinator": c}
 
