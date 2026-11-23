@@ -15,33 +15,45 @@ from custom_components.kr_public_data.exceptions import (
 )
 from custom_components.kr_public_data.utils import KST
 
-from . import FORECAST_URL, REALTIME_URL, STATION_URL
+from . import FORECAST_URL, REALTIME_URL, STATION_URL, group_stations
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def search_stations(
-    session: aiohttp.ClientSession, api_key: str, addr: str = ""
-) -> list[dict]:
+async def fetch_stations_by_sido(
+    session: aiohttp.ClientSession, api_key: str
+) -> dict[str, list[str]]:
+    """전국 측정소 목록(측정소정보 API) → {시도 축약명: 측정소명 목록}.
+
+    addr 파라미터는 부분 문자열 검색이라('광주'가 경기 광주시까지 잡음) 전체를
+    한 번에 받아 주소로 분류한다. 이 API는 대기오염정보와 별도 활용신청이
+    필요하므로, 실패하면 예외를 던져 호출자가 STATIONS_BY_SIDO로 폴백하게 한다.
+    """
     params = {"serviceKey": api_key, "returnType": "json",
-              "numOfRows": "100", "pageNo": "1"}
-    if addr:
-        params["addr"] = addr
+              "numOfRows": "1000", "pageNo": "1"}
     async with session.get(STATION_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=15)) as r:
         text = await r.text()
+        raise_for_gateway_error(text)
         if r.status != 200:
-            return []
+            raise KrTransientError(f"AirKorea station list HTTP {r.status}")
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
-        return []
-    body = data.get("response", {}).get("body", {})
-    items = body.get("items", [])
+    except json.JSONDecodeError as err:
+        raise KrTransientError(f"AirKorea station list: not JSON: {text[:120]}") from err
+    header = data.get("response", {}).get("header", {})
+    rc = header.get("resultCode")
+    if rc != "00":
+        raise_for_result_code(rc, header.get("resultMsg", ""))
+        raise KrTransientError(
+            f"AirKorea station list resultCode {rc}: {header.get('resultMsg', '')}")
+    items = data.get("response", {}).get("body", {}).get("items", [])
     if isinstance(items, dict):
         items = [items]
-    return [{"stationName": i.get("stationName", ""), "addr": i.get("addr", "")}
-            for i in items if i.get("stationName")]
+    grouped = group_stations(items)
+    if not grouped:
+        raise KrTransientError("AirKorea station list: no stations")
+    return grouped
 
 
 async def fetch_realtime(

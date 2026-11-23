@@ -116,6 +116,18 @@ def _sido_selector() -> SelectSelector:
                                                mode=SelectSelectorMode.DROPDOWN))
 
 
+async def _air_stations_by_sido(hass: HomeAssistant, api_key: str) -> dict[str, list[str]]:
+    """실시간 측정소 목록; 측정소정보 API를 못 쓰면(미신청 등) 내장 스냅샷."""
+    from .airkorea import STATIONS_BY_SIDO
+    from .airkorea.api import fetch_stations_by_sido
+    from .exceptions import KrApiError
+    try:
+        return await fetch_stations_by_sido(async_get_clientsession(hass), api_key)
+    except (aiohttp.ClientError, TimeoutError, KrApiError) as err:
+        _LOGGER.debug("AirKorea station list unavailable, using built-in list: %s", err)
+        return STATIONS_BY_SIDO
+
+
 def _password_selector() -> TextSelector:
     return TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 
@@ -1037,7 +1049,6 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 2: 측정소(시군구) 복수 선택."""
         import homeassistant.helpers.config_validation as cv
 
-        from .airkorea import STATIONS_BY_SIDO
         if user_input is not None:
             selected = user_input.get("stations", [])
             self._data["sido"] = self._air_sido
@@ -1050,7 +1061,8 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                      "unique_id": f"{self._air_sido}_{s}"}
                     for s in selected
                 ])
-        station_list = STATIONS_BY_SIDO.get(self._air_sido, [])
+        stations = await _air_stations_by_sido(self.hass, self._data["api_key"])
+        station_list = stations.get(self._air_sido, [])
         labels = {s: s for s in station_list}
         return self.async_show_form(step_id="airkorea_select", data_schema=vol.Schema({
             vol.Required("stations", default=station_list[:3]): cv.multi_select(labels),
@@ -1083,7 +1095,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 2: 기초자치단체 + O3/UV 측정소 선택."""
         import homeassistant.helpers.config_validation as cv
 
-        from .airkorea import SIDO_AREA_CODE, STATIONS_BY_SIDO
+        from .airkorea import SIDO_AREA_CODE
         from .kma_weather import SIDO_LIST
         sgg_map = SIDO_LIST.get(self._kma_sido, {})
         if user_input is not None:
@@ -1105,12 +1117,13 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     for r in selected if r in sgg_map
                 ])
         labels = {k: k for k in sgg_map}
-        air_stations = STATIONS_BY_SIDO.get(sido_short_name(self._kma_sido), [])
+        stations = await _air_stations_by_sido(self.hass, self._data["api_key"])
+        air_stations = stations.get(sido_short_name(self._kma_sido), [])
         # "" is not usable as a select value in the frontend (it reads as
         # "no selection" and locks the field) — use a "none" sentinel.
         air_opts = [SelectOptionDict(value="none", label="사용 안 함 (날씨만)")]
         air_opts += [SelectOptionDict(value=s, label=f"{s} (O₃/UV 포함)")
-                     for s in air_stations[:30]]
+                     for s in air_stations]
         return self.async_show_form(step_id="kma_weather_sgg", data_schema=vol.Schema({
             vol.Required("regions"): cv.multi_select(labels),
             vol.Required("air_station", default="none"): SelectSelector(
@@ -1436,7 +1449,6 @@ class StationSubentryFlowHandler(config_entries.ConfigSubentryFlow):
     async def async_step_station(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        from .airkorea import STATIONS_BY_SIDO
         if user_input is not None:
             station = user_input["station"]
             entry = self._get_entry()
@@ -1447,8 +1459,9 @@ class StationSubentryFlowHandler(config_entries.ConfigSubentryFlow):
                 title=f"{self._sido} {station}",
                 data={"sido": self._sido, "stationName": station},
                 unique_id=f"{self._sido}_{station}")
+        stations = await _air_stations_by_sido(self.hass, self._get_entry().data["api_key"])
         station_opts = [SelectOptionDict(value=s, label=s)
-                        for s in STATIONS_BY_SIDO.get(self._sido, [])]
+                        for s in stations.get(self._sido, [])]
         return self.async_show_form(step_id="station", data_schema=vol.Schema({
             vol.Required("station"): SelectSelector(
                 SelectSelectorConfig(options=station_opts,
@@ -2098,11 +2111,11 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
             })
 
         elif etype == ENTRY_KMA_WEATHER:
-            from .airkorea import STATIONS_BY_SIDO
-            stations = STATIONS_BY_SIDO.get(sido_short_name(d.get("sido", "")), [])
+            stations = (await _air_stations_by_sido(self.hass, d.get("api_key", ""))).get(
+                sido_short_name(d.get("sido", "")), [])
             air_opts = [SelectOptionDict(value="none", label="사용 안 함 (날씨만)")]
             air_opts += [SelectOptionDict(value=s, label=f"{s} (O₃/UV 포함)")
-                         for s in stations[:30]]
+                         for s in stations]
             return vol.Schema({
                 vol.Required("api_key", default=d.get("api_key", "")): _password_selector(),
                 vol.Required("air_station",
