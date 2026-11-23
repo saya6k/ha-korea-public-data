@@ -9,7 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from custom_components.kr_public_data.exceptions import KrTransientError
+from custom_components.kr_public_data.exceptions import (
+    KrAuthError,
+    KrQuotaError,
+    KrTransientError,
+)
 from custom_components.kr_public_data.resilience import ResilientCoordinator
 
 from . import SCAN_INTERVAL, SIDO_AREA_CODE
@@ -42,6 +46,8 @@ class AirKoreaCoordinator(ResilientCoordinator):
             try:
                 result["stations"][name] = await fetch_realtime(
                     session, self._api_key, name)
+            except (KrAuthError, KrQuotaError):
+                raise
             except Exception as e:
                 station_failures += 1
                 _LOGGER.warning("AirKorea realtime %s: %s", name, e)
@@ -50,6 +56,8 @@ class AirKoreaCoordinator(ResilientCoordinator):
                     result["stations"][name] = prev_station
         try:
             result["forecast"] = await fetch_forecast(session, self._api_key)
+        except (KrAuthError, KrQuotaError):
+            raise
         except Exception as e:
             _LOGGER.warning("AirKorea forecast: %s", e)
             result["forecast"] = previous.get("forecast", [])
