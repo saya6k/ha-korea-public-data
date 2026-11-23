@@ -4,6 +4,10 @@
     "quota_exceeded": {
       "title": "Daily API quota exceeded",
       "description": "The daily request quota for `{name}` has been exhausted. Polling is paused until midnight (KST) and the last known data is served in the meantime. Consider requesting a higher quota on data.go.kr or adding a second service key."
+    },
+    "airkorea_stale_stations": {
+      "title": "AirKorea stations need to be re-added",
+      "description": "These stations were added from an old station list that used district names instead of real AirKorea station names, so they never receive data (or show a Seoul station with the same name): {stations}. Open the 에어코리아 entry, delete them, and add the station nearest to you again — the list now shows real station names."
     }
   },
   "config": {

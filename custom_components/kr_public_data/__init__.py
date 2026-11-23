@@ -224,6 +224,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     elif etype == ENTRY_AIRKOREA:
         from .airkorea.coordinator import AirKoreaCoordinator
+        from .airkorea.repairs import async_check_stale_stations
         api_key = entry.data["api_key"]
         living_key = entry.data.get("living_api_key", "") or api_key
         # 측정소 per subentry; legacy entries keep stations in entry data.
@@ -231,6 +232,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         for sub_id, sub in entry.subentries.items()}
         stations = list(station_subs.values()) or entry.data.get("stations", [])
         sido = entry.data.get("sido", "서울")
+        async_check_stale_stations(hass, entry, stations, sido)
         c = AirKoreaCoordinator(hass, entry, api_key, stations,
                                  living_api_key=living_key, sido=sido)
         await c.async_config_entry_first_refresh()
