@@ -1232,7 +1232,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("contract_num"): str,
         }), errors=errors)
 
-        # ══════════ Options Flow =════════
+    # ══════════ Options Flow ══════════
 
     @staticmethod
     @callback
@@ -2135,14 +2135,6 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
                              default=d.get("air_station") or "none"): SelectSelector(
                     SelectSelectorConfig(options=air_opts,
                                          mode=SelectSelectorMode.DROPDOWN)),
-            })
-
-        elif etype == ENTRY_EARTHQUAKE:
-            return vol.Schema({
-                vol.Required("api_key", default=d.get("api_key", "")): _password_selector(),
-                vol.Optional("radius_km", default=d.get("radius_km", 200)): vol.Coerce(int),
-                vol.Optional("min_magnitude",
-                             default=d.get("min_magnitude", 3.0)): vol.Coerce(float),
             })
 
         elif etype == ENTRY_BUS:
