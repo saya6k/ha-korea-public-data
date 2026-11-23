@@ -86,6 +86,29 @@ def _resolve_target_date(range_value: str, today: date) -> date | None:
     return today
 
 
+def _resolve_region(keys: list[str], wanted: str | None) -> tuple[str | None, str | None]:
+    """Pick a coordinator data key ("시도 시군구", or a bare legacy name).
+
+    Every word of ``wanted`` must start a word of the key, so '해운대구' and
+    '부산 해운대구' both match '부산광역시 해운대구'. Returns (key, error).
+    """
+    listed = ", ".join(keys)
+    if not wanted:
+        if len(keys) == 1:
+            return keys[0], None
+        return None, f"등록된 지역이 여러 개입니다. 어느 지역인지 물어보세요: {listed}"
+    if wanted in keys:
+        return wanted, None
+    words = wanted.split()
+    matches = [k for k in keys
+               if all(any(part.startswith(w) for part in k.split()) for w in words)]
+    if len(matches) == 1:
+        return matches[0], None
+    if matches:
+        return None, f"'{wanted}'에 해당하는 지역이 여러 개입니다: {', '.join(matches)}"
+    return None, f"'{wanted}' 지역은 등록되어 있지 않습니다. 등록된 지역: {listed}"
+
+
 class GetKMAWeatherForecastTool(BaseKRTool):
     """KMA village forecast packaged as a voice-satellite weather payload."""
 
@@ -111,8 +134,8 @@ class GetKMAWeatherForecastTool(BaseKRTool):
             vol.Optional(
                 "region_name",
                 description=(
-                    "Configured region name to look up. Omit to use the "
-                    "first configured region."
+                    "Configured region to look up, e.g. '해운대구' or '부산 해운대구'. "
+                    "Required when more than one region is configured."
                 ),
             ): str,
         }
@@ -129,32 +152,12 @@ class GetKMAWeatherForecastTool(BaseKRTool):
 
         store = self.store
         coord = store.get("coordinator")
-        regions = store.get("regions", [])
         if coord is None or not coord.data:
             return self.error("기상청 데이터가 아직 준비되지 않았습니다.")
 
-        # Resolve region — data keys are region_key(r) ("시도 시군구" for
-        # subentry regions, bare name for legacy), so match either form.
-        from custom_components.kr_public_data.kma_weather import region_key
-        region_name = None
-        if wanted_region:
-            if wanted_region in coord.data:
-                region_name = wanted_region
-            else:
-                for r in regions:
-                    key = region_key(r)
-                    if wanted_region == r.get("name") and key in coord.data:
-                        region_name = key
-                        break
-        if region_name is None:
-            for r in regions:
-                if region_key(r) in coord.data:
-                    region_name = region_key(r)
-                    break
-            if region_name is None and coord.data:
-                region_name = next(iter(coord.data.keys()))
-        if region_name is None:
-            return self.error("등록된 지역이 없습니다.")
+        region_name, err = _resolve_region(list(coord.data), wanted_region)
+        if err:
+            return self.error(err)
 
         region_data = coord.data.get(region_name) or {}
         hourly = region_data.get("hourly_forecasts") or []

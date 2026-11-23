@@ -42,8 +42,8 @@ API_PROMPTS: dict[str, str] = {
         "You may use the kr_public_data__get_weather_forecast tool to look up the Korean "
         "Meteorological Administration forecast. Pick the appropriate range "
         "('today', 'tomorrow', 'week', or a weekday name). If the user names "
-        "a region, pass it through region_name; otherwise omit it to use the "
-        "first configured region."
+        "a region, pass it through region_name; otherwise omit it. If the tool "
+        "says several regions are configured, ask the user which one."
     ),
     ENTRY_WEATHER: (
         "You may use the kr_public_data__get_weather_warnings tool to retrieve currently "
