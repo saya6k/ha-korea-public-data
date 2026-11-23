@@ -1127,6 +1127,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # ══════════ Options Flow =════════
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> KRPublicDataOptionsFlow:
         return KRPublicDataOptionsFlow(config_entry)
 
