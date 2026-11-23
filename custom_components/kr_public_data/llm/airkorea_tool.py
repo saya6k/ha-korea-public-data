@@ -72,11 +72,21 @@ class GetAirQualityTool(BaseKRTool):
         else:
             station_iter = list(stations_data.items())
 
+        # 생활지수는 측정소의 시도별 값 (coordinator가 측정소명으로 펼쳐 둠).
+        uv_all: dict[str, Any] = coord.data.get("uv") or {}
+        stag_all: dict[str, Any] = coord.data.get("stagnation") or {}
+
+        def _now(index: dict[str, Any] | None) -> Any:
+            index = index or {}
+            return index.get("h0") or index.get("today")
+
         stations_out: list[dict[str, Any]] = []
         for name, data in station_iter:
             if not data:
                 continue
             stations_out.append({
+                "uv_index": _now(uv_all.get(name)),
+                "stagnation": _now(stag_all.get(name)),
                 "station": name,
                 "datetime": data.get("dataTime"),
                 "pm10": data.get("pm10Value"),
@@ -103,10 +113,11 @@ class GetAirQualityTool(BaseKRTool):
             for f in forecast[:3]
         ]
 
-        uv = coord.data.get("uv") or {}
-        uv_now = uv.get("h0") or uv.get("today")
-        stag = coord.data.get("stagnation") or {}
-        stag_now = stag.get("h0") or stag.get("today")
+        # Stations in different 시도 can disagree; only summarise a shared value.
+        uv_values = {s["uv_index"] for s in stations_out}
+        stag_values = {s["stagnation"] for s in stations_out}
+        uv_now = uv_values.pop() if len(uv_values) == 1 else None
+        stag_now = stag_values.pop() if len(stag_values) == 1 else None
 
         rows = [
             [

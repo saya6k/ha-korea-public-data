@@ -33,7 +33,9 @@ class AirKoreaCoordinator(ResilientCoordinator):
         self._api_key = api_key
         self._stations = stations
         self._living_key = living_api_key or api_key
-        self._area_code = SIDO_AREA_CODE.get(sido, "1100000000")
+        # 생활지수는 시도 단위 — 측정소마다 자기 시도 값을 쓴다 (legacy 측정소는
+        # 시도가 없어 엔트리의 시도로).
+        self._station_sido = {st["stationName"]: st.get("sido") or sido for st in stations}
         self._session = async_get_clientsession(hass)
 
     async def _fetch(self) -> dict[str, Any]:
@@ -61,17 +63,23 @@ class AirKoreaCoordinator(ResilientCoordinator):
         except Exception as e:
             _LOGGER.warning("AirKorea forecast: %s", e)
             result["forecast"] = previous.get("forecast", [])
-        # Living indices - shared for the region
-        try:
-            result["uv"] = await fetch_uv_index(
-                session, self._living_key, self._area_code)
-        except Exception as e:
-            _LOGGER.debug("AirKorea UV index failed: %s", e)
-        try:
-            result["stagnation"] = await fetch_air_stagnation(
-                session, self._living_key, self._area_code)
-        except Exception as e:
-            _LOGGER.debug("AirKorea stagnation failed: %s", e)
+        # Living indices: one fetch per 시도, keyed by station name.
+        for sido in sorted(set(self._station_sido.values())):
+            area_code = SIDO_AREA_CODE.get(sido, "1100000000")
+            uv: dict[str, Any] = {}
+            stag: dict[str, Any] = {}
+            try:
+                uv = await fetch_uv_index(session, self._living_key, area_code)
+            except Exception as e:
+                _LOGGER.debug("AirKorea UV index %s failed: %s", sido, e)
+            try:
+                stag = await fetch_air_stagnation(session, self._living_key, area_code)
+            except Exception as e:
+                _LOGGER.debug("AirKorea stagnation %s failed: %s", sido, e)
+            for name, station_sido in self._station_sido.items():
+                if station_sido == sido:
+                    result["uv"][name] = uv
+                    result["stagnation"][name] = stag
         # If every station failed and forecast is empty, surface the failure
         if self._stations and station_failures == len(self._stations) and not result["forecast"]:
             raise KrTransientError("AirKorea: all station and forecast fetches failed")

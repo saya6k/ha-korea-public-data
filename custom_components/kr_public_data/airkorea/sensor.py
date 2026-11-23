@@ -305,17 +305,18 @@ class UVIndexSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator: AirKoreaCoordinator, station_name: str) -> None:
         super().__init__(coordinator)
+        self._station = station_name
         self._attr_unique_id = f"{DOMAIN}_air_uv_{station_name}"
         self._attr_device_info = air_device(station_name)
 
     @property
     def native_value(self) -> int | None:
-        uv = (self.coordinator.data or {}).get("uv", {})
+        uv = (self.coordinator.data or {}).get("uv", {}).get(self._station, {})
         return _get_current_index_value(uv)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        uv = (self.coordinator.data or {}).get("uv", {})
+        uv = (self.coordinator.data or {}).get("uv", {}).get(self._station, {})
         val = self.native_value
         attrs = {"grade": _uv_grade(val)}
         attrs.update(_get_all_hourly_values(uv))
@@ -331,17 +332,18 @@ class AirStagnationSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator: AirKoreaCoordinator, station_name: str) -> None:
         super().__init__(coordinator)
+        self._station = station_name
         self._attr_unique_id = f"{DOMAIN}_air_stag_{station_name}"
         self._attr_device_info = air_device(station_name)
 
     @property
     def native_value(self) -> int | None:
-        stag = (self.coordinator.data or {}).get("stagnation", {})
+        stag = (self.coordinator.data or {}).get("stagnation", {}).get(self._station, {})
         return _get_current_index_value(stag)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        stag = (self.coordinator.data or {}).get("stagnation", {})
+        stag = (self.coordinator.data or {}).get("stagnation", {}).get(self._station, {})
         val = self.native_value
         attrs = {"grade": _stag_grade(val)}
         attrs.update(_get_all_hourly_values(stag))
