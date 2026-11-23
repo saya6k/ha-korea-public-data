@@ -40,10 +40,7 @@ async def fetch_earthquakes(
     try:
         data = json.loads(text)
         header = data.get("response", {}).get("header", {})
-        rc = header.get("resultCode")
-        raise_for_result_code(rc, header.get("resultMsg", ""))
-        if rc not in (None, "00", "03"):
-            raise KrTransientError(f"지진정보 resultCode {rc}: {header.get('resultMsg', '')}")
+        _check_result_code(header.get("resultCode"), header.get("resultMsg", ""))
         total = data.get("response", {}).get("body", {}).get("totalCount", 0)
         if total == 0:
             return []
@@ -57,10 +54,16 @@ async def fetch_earthquakes(
         pass
     try:
         root = ET.fromstring(text)
-        return [_parse_xml(i) for i in root.findall(".//item")]
-    except ET.ParseError:
-        pass
-    return []
+    except ET.ParseError as err:
+        raise KrTransientError(f"지진정보: unparseable response: {text[:120]}") from err
+    _check_result_code(root.findtext(".//resultCode"), root.findtext(".//resultMsg", ""))
+    return [_parse_xml(i) for i in root.findall(".//item")]
+
+
+def _check_result_code(rc: str | None, msg: str) -> None:
+    raise_for_result_code(rc, msg)
+    if rc not in (None, "00", "03"):
+        raise KrTransientError(f"지진정보 resultCode {rc}: {msg}")
 
 
 def _parse(i: dict[str, Any]) -> dict[str, Any]:
