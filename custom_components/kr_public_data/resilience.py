@@ -130,16 +130,22 @@ class ResilientCoordinator[DataT](DataUpdateCoordinator[DataT]):
         if active == self._quota_issue_active:
             return
         self._quota_issue_active = active
-        issue_id = f"quota_exceeded_{self.name}"
+        entry = self.config_entry
+        # Coordinator names repeat across entries (two airkorea entries with
+        # different keys are both "airkorea"), so scope the issue by entry —
+        # otherwise one entry recovering would clear the other's issue.
+        issue_id = (f"quota_exceeded_{entry.entry_id}_{self.name}" if entry
+                    else f"quota_exceeded_{self.name}")
         if active:
             ir.async_create_issue(
                 self.hass, DOMAIN, issue_id,
                 # Linked so HA drops the issue when the entry is removed.
-                config_entry_id=self.config_entry.entry_id if self.config_entry else None,
+                config_entry_id=entry.entry_id if entry else None,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="quota_exceeded",
-                translation_placeholders={"name": self.name},
+                translation_placeholders={
+                    "name": f"{entry.title} ({self.name})" if entry else self.name},
             )
         else:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
