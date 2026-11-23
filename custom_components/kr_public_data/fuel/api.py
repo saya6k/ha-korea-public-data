@@ -39,7 +39,9 @@ async def fetch_avg_price(session: aiohttp.ClientSession,
 
 async def fetch_low_price(session: aiohttp.ClientSession, api_key: str,
                            sido_code: str, fuel_code: str) -> list[dict[str, Any]]:
-    params = {"code": api_key, "out": "xml", "sido": sido_code, "prodcd": fuel_code, "cnt": "5"}
+    # lowTop10.do takes the 시도 as `area`; an unknown param is ignored and the
+    # nationwide ranking comes back.
+    params = {"code": api_key, "out": "xml", "area": sido_code, "prodcd": fuel_code, "cnt": "5"}
     async with session.get(OPINET_LOWPRICE_URL, params=params,
                            timeout=aiohttp.ClientTimeout(total=15)) as r:
         text = await r.text()
