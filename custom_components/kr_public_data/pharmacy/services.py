@@ -8,7 +8,6 @@ from homeassistant.core import ServiceCall, ServiceResponse
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..const import CONF_ENTRY_TYPE, DOMAIN, ENTRY_PHARMACY
-
 from .api import fetch_pharmacies
 from .sensor import pharmacies_within_radius
 
