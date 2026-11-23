@@ -8,6 +8,10 @@ from types import SimpleNamespace
 from homeassistant.helpers import llm
 
 from custom_components.kr_public_data.const import DOMAIN
+from custom_components.kr_public_data.llm.bus_tool import (
+    GetCityBusArrivalsTool,
+    GetIntercityBusDeparturesTool,
+)
 from custom_components.kr_public_data.llm.kma_weather_tool import GetKMAWeatherForecastTool
 from custom_components.kr_public_data.llm.safety_alert_tool import GetSafetyAlertsTool
 from custom_components.kr_public_data.llm.tools import TOOLS_BY_ETYPE
@@ -143,3 +147,49 @@ def test_subway_lists_stations_for_unknown_name():
     result = _subway("강남", "역삼")(station="잠실")
     assert result.error
     assert "강남" in result.data["error"]
+
+
+def _bus(*stops):
+    stop_subs = {
+        f"sub{i}": {"kind": "tago", "nodeId": node_id, "nodeName": name,
+                    "routes": [{"routeId": f"R{route}", "routeNo": route}],
+                    "coordinator": SimpleNamespace(data={})}
+        for i, (node_id, name, route) in enumerate(stops)}
+    hass = _hass({"stop_subs": stop_subs})
+    tool = GetCityBusArrivalsTool(hass, "test")
+
+    def call(**args):
+        return asyncio.run(tool.async_call(
+            hass, llm.ToolInput(tool_name=tool.name, tool_args=args), None))
+    return call
+
+
+def test_bus_single_stop_needs_no_name():
+    assert _bus(("N1", "대전역", "102"))().data["stop"] == "대전역"
+
+
+def test_bus_asks_which_stop_when_ambiguous():
+    result = _bus(("N1", "대전역", "102"), ("N2", "시청", "301"))()
+    assert result.error
+    assert "시청" in result.data["error"]
+
+
+def test_bus_same_name_stops_stay_distinct():
+    call = _bus(("N1", "서면역", "52"), ("N2", "서면역", "63"), ("N3", "시청", "301"))
+    result = call(stop="서면역")
+    assert result.error
+    assert "서면역 (N1) [노선 52]" in result.data["error"]
+    assert "서면역 (N2) [노선 63]" in result.data["error"]
+    assert call(stop="서면역 (N2)").data["stop"] == "서면역 (N2)"
+    assert call(stop="시청").data["stop"] == "시청"
+
+
+def test_intercity_asks_which_route_when_ambiguous():
+    routes = {name: {"grades": [], "coordinator": SimpleNamespace(data={})}
+              for name in ("동서울→춘천", "서울경부→부산")}
+    hass = _hass({"intercity_bus_by_name": routes})
+    tool = GetIntercityBusDeparturesTool(hass, "test")
+    result = asyncio.run(tool.async_call(
+        hass, llm.ToolInput(tool_name=tool.name, tool_args={}), None))
+    assert result.error
+    assert "서울경부→부산" in result.data["error"]

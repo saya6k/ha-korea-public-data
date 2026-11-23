@@ -1,6 +1,7 @@
 """City bus (전국 TAGO + 서울 TOPIS) LLM tool."""
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 import voluptuous as vol
@@ -62,6 +63,55 @@ def _seoul_arrivals(info: dict, data: dict) -> list[dict[str, Any]]:
     return arrivals
 
 
+def _stop_labels(stops: list[dict]) -> list[str]:
+    """Stop names, with the nodeId added where a name is shared.
+
+    Both sides of a road usually carry the same 정류장 name (부산
+    '서면역.롯데호텔백화점' is 4 stops), so the name alone can't be a key.
+    """
+    counts = Counter(info["nodeName"] for info in stops)
+    return [info["nodeName"] if counts[info["nodeName"]] == 1
+            else f"{info['nodeName']} ({info['nodeId']})" for info in stops]
+
+
+def _describe_stops(pairs: list[tuple[str, dict]]) -> str:
+    return ", ".join(f"{label} [노선 {'/'.join(r['routeNo'] for r in info['routes'])}]"
+                     for label, info in pairs)
+
+
+def _resolve_stop(stops: list[dict], wanted: str | None) -> tuple[tuple[str, dict] | None,
+                                                                   str | None]:
+    """Pick a configured stop by label or name. Returns ((label, info), error)."""
+    pairs = list(zip(_stop_labels(stops), stops, strict=True))
+    if not wanted:
+        if len(pairs) == 1:
+            return pairs[0], None
+        return None, ("등록된 정류장이 여러 개입니다. 어느 정류장인지 물어보세요: "
+                      + _describe_stops(pairs))
+    wanted = wanted.strip()
+    matches = ([p for p in pairs if p[0] == wanted]
+               or [p for p in pairs if p[1]["nodeName"] == wanted])
+    if len(matches) == 1:
+        return matches[0], None
+    if matches:
+        return None, (f"'{wanted}' 이름의 정류장이 여러 개입니다. 노선으로 구분해 "
+                      f"물어보세요: {_describe_stops(matches)}")
+    return None, (f"'{wanted}' 정류장이 등록되어 있지 않습니다. "
+                  f"등록된 정류장: {_describe_stops(pairs)}")
+
+
+def _resolve_route(routes: list[str], wanted: str | None) -> tuple[str | None, str | None]:
+    """Pick a configured '출발→도착' route. Returns (route, error)."""
+    listed = ", ".join(routes)
+    if not wanted:
+        if len(routes) == 1:
+            return routes[0], None
+        return None, f"등록된 구간이 여러 개입니다. 어느 구간인지 물어보세요: {listed}"
+    if wanted in routes:
+        return wanted, None
+    return None, f"'{wanted}' 구간이 등록되어 있지 않습니다. 등록된 구간: {listed}"
+
+
 class GetCityBusArrivalsTool(BaseKRTool):
     service = ENTRY_BUS
     name = "kr_public_data__get_city_bus_arrivals"
@@ -76,8 +126,9 @@ class GetCityBusArrivalsTool(BaseKRTool):
             vol.Optional(
                 "stop",
                 description=(
-                    "Bus stop name (Korean, e.g. '대전역'). Omit to use the "
-                    "first configured stop."
+                    "Bus stop name (Korean, e.g. '대전역'), or the exact label "
+                    "from the tool's list when several stops share a name. "
+                    "Required when more than one stop is configured."
                 ),
             ): str,
         }
@@ -90,19 +141,14 @@ class GetCityBusArrivalsTool(BaseKRTool):
         llm_context: llm.LLMContext,
     ) -> llm.ToolResult:
         store = self.store
-        by_name: dict[str, Any] = store.get("city_bus_by_name") or {}
-        if not by_name:
+        stops = list((store.get("stop_subs") or {}).values())
+        if not stops:
             return self.error("등록된 버스 정류장이 없습니다.")
 
-        wanted = tool_input.tool_args.get("stop")
-        if wanted is None:
-            stop = next(iter(by_name.keys()))
-        elif wanted in by_name:
-            stop = wanted
-        else:
-            return self.error(f"'{wanted}' 정류장이 등록되어 있지 않습니다.")
-
-        info = by_name[stop]
+        picked, err = _resolve_stop(stops, tool_input.tool_args.get("stop"))
+        if err:
+            return self.error(err)
+        stop, info = picked
         coord = info["coordinator"]
         if coord.data is None:
             return self.error("버스 도착 데이터가 아직 준비되지 않았습니다.")
@@ -158,7 +204,8 @@ class GetIntercityBusDeparturesTool(BaseKRTool):
                 "route",
                 description=(
                     "Route as '출발터미널→도착터미널' (Korean, e.g. "
-                    "'동서울→춘천'). Omit to use the first configured route."
+                    "'동서울→춘천'). Required when more than one route is "
+                    "configured."
                 ),
             ): str,
         }
@@ -175,13 +222,9 @@ class GetIntercityBusDeparturesTool(BaseKRTool):
         if not by_name:
             return self.error("등록된 시외/고속버스 구간이 없습니다.")
 
-        wanted = tool_input.tool_args.get("route")
-        if wanted is None:
-            route = next(iter(by_name.keys()))
-        elif wanted in by_name:
-            route = wanted
-        else:
-            return self.error(f"'{wanted}' 구간이 등록되어 있지 않습니다.")
+        route, err = _resolve_route(list(by_name), tool_input.tool_args.get("route"))
+        if err:
+            return self.error(err)
 
         info = by_name[route]
         coord = info["coordinator"]

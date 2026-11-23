@@ -316,12 +316,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         [r["routeId"] for r in sub.data.get("routes", [])]),
                 }
         sc = {info["nodeId"]: info["coordinator"] for info in stop_subs.values()}
-        by_name = {info["nodeName"]: info for info in stop_subs.values()}
         all_coords = list(sc.values()) + [info["coordinator"] for info in route_subs.values()]
         await async_first_refresh_all(all_coords, "bus")
         route_by_name = {f"{info['depTerminalName']}→{info['arrTerminalName']}": info
                          for info in route_subs.values()}
-        store = {"city_bus_coords": sc, "stop_subs": stop_subs, "city_bus_by_name": by_name,
+        store = {"city_bus_coords": sc, "stop_subs": stop_subs,
                  "route_subs": route_subs, "intercity_bus_by_name": route_by_name}
 
     entry.runtime_data = store
