@@ -38,6 +38,11 @@ allowed-confusables = ["×"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ANN", "PL", "S"]
+# The relative `..const` import is deliberate (#76): the Barkley scanner can't
+# resolve the absolute `custom_components.kr_public_data.const` path to this
+# integration's own DOMAIN and flags the async_entries(DOMAIN) loop as reading
+# other integrations' credentials.
+"custom_components/kr_public_data/pharmacy/services.py" = ["TID252"]
 
 # The PLR complexity caps below are waived per file, not silenced globally.
 # Every one of them is a dispatch table over the 17 domains, or an API-shaped
