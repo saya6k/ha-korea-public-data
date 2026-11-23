@@ -40,6 +40,13 @@ def _uv_offset(uv: dict[str, Any], now: datetime) -> int:
     return max(hours // 3 * 3, 0)
 
 
+def _carry_over(result: dict[str, Any], previous: dict[str, Any], key: str) -> None:
+    """Keep last cycle's value for ``key`` when its fetch failed outright."""
+    for name, region in result.items():
+        if key in previous.get(name, {}):
+            region[key] = previous[name][key]
+
+
 class KMAWeatherCoordinator(ResilientCoordinator):
     stale_tolerance = 4
 
@@ -77,8 +84,9 @@ class KMAWeatherCoordinator(ResilientCoordinator):
                 last_err = e
                 _LOGGER.warning("KMA weather %s: %s", name, e)
                 # Keep the previous forecast for this region instead of
-                # blanking the weather entity.
-                result[name] = previous.get(name, {})
+                # blanking the weather entity. Copy it: steps 2-3 write into
+                # result, which must not mutate the data entities still hold.
+                result[name] = dict(previous.get(name, {}))
 
         if self._regions and region_failures == len(self._regions):
             raise KrTransientError(f"KMA: all region forecasts failed: {last_err}")
@@ -96,6 +104,7 @@ class KMAWeatherCoordinator(ResilientCoordinator):
                             region["ozone"] = float(o3)
             except Exception as e:
                 _LOGGER.debug("KMA O3 fetch: %s", e)
+                _carry_over(result, previous, "ozone")
 
         # 3. Fetch UV index from Living Weather V5 (same session)
         if self._area_no:
@@ -117,5 +126,6 @@ class KMAWeatherCoordinator(ResilientCoordinator):
                                 pass
             except Exception as e:
                 _LOGGER.debug("KMA UV fetch: %s", e)
+                _carry_over(result, previous, "uv_index")
 
         return result
