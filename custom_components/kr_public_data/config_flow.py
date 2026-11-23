@@ -273,6 +273,15 @@ _REAUTH_KEY_FIELD = {
 }
 
 
+# Secret fields renamed since release: (etype, current name) → old name.
+_LEGACY_KEY_FIELD = {
+    (ENTRY_BUS, "api_key"): "service_key",
+    (ENTRY_FUEL, "opinet_api_key"): "api_key",
+    (ENTRY_SCHOOL, "neis_api_key"): "api_key",
+    (ENTRY_DISASTER, "safety_api_key"): "api_key",
+}
+
+
 async def _validate_api_key(hass: HomeAssistant, entry: ConfigEntry, api_key: str) -> bool:
     """Whether the service behind ``entry`` accepts ``api_key`` (reauth)."""
     session = async_get_clientsession(hass)
@@ -1910,6 +1919,12 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_pharmacy_options(user_input)
 
         if user_input is not None:
+            if err := await self._validate_changed_credentials(etype, user_input):
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self.add_suggested_values_to_schema(
+                        await self._build_schema(etype), user_input),
+                    errors={"base": err})
             if user_input.get("air_station") == "none":
                 user_input["air_station"] = ""
             if etype == ENTRY_EARTHQUAKE and "location" in user_input:
@@ -1949,6 +1964,12 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
         d = self._entry.data
         regions = d.get("regions", [])
         if user_input is not None:
+            if err := await self._validate_changed_credentials(ENTRY_PHARMACY, user_input):
+                return self.async_show_form(
+                    step_id="pharmacy_options",
+                    data_schema=self.add_suggested_values_to_schema(
+                        self._pharmacy_options_schema(), user_input),
+                    errors={"base": err})
             new_data = {**d, "api_key": user_input["api_key"]}
             if len(regions) == 1:
                 new_data["regions"] = [{**regions[0],
@@ -1960,6 +1981,12 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_pharmacy_region_edit()
             return self.async_create_entry(title="", data={})
 
+        return self.async_show_form(step_id="pharmacy_options",
+                                    data_schema=self._pharmacy_options_schema())
+
+    def _pharmacy_options_schema(self) -> vol.Schema:
+        d = self._entry.data
+        regions = d.get("regions", [])
         schema = {vol.Required("api_key", default=d.get("api_key", "")): _password_selector()}
         if len(regions) == 1:
             schema.update(_pharmacy_location_fields(self.hass, regions[0]))
@@ -1970,7 +1997,38 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
             ]
             schema[vol.Required("region", default="0")] = SelectSelector(
                 SelectSelectorConfig(options=region_opts, mode=SelectSelectorMode.DROPDOWN))
-        return self.async_show_form(step_id="pharmacy_options", data_schema=vol.Schema(schema))
+        return vol.Schema(schema)
+
+    async def _validate_changed_credentials(self, etype: str | None,
+                                            user_input: dict[str, Any]) -> str | None:
+        """Error key when a credential edited here is rejected, else None.
+
+        Only fields that actually changed are checked, so re-saving other
+        options never depends on the remote service being up. "Current"
+        mirrors the form defaults, including pre-rename field names.
+        """
+        d = self._entry.data
+
+        def changed(*fields: str) -> bool:
+            return any(f in user_input and user_input[f] != (
+                d.get(f) or d.get(_LEGACY_KEY_FIELD.get((etype, f), ""), ""))
+                for f in fields)
+
+        if etype in _REAUTH_KEY_FIELD:
+            field = _REAUTH_KEY_FIELD[etype]
+            # An emptied optional key (transit) has nothing to validate.
+            if (changed(field) and user_input[field]
+                    and not await _validate_api_key(self.hass, self._entry, user_input[field])):
+                return "cannot_connect"
+        elif etype == ENTRY_KEPCO and changed("username", "password"):
+            return await _validate_kepco(user_input["username"], user_input["password"])
+        elif etype == ENTRY_GASAPP and changed("token", "member_id", "contract_num"):
+            return await _validate_gasapp(self.hass, user_input["token"],
+                                          user_input["member_id"], user_input["contract_num"])
+        elif etype == ENTRY_ARISU and changed("customer_number", "customer_name"):
+            return await _validate_arisu(self.hass, user_input["customer_number"],
+                                         user_input["customer_name"])
+        return None
 
     async def async_step_pharmacy_region_edit(
         self, user_input: dict[str, Any] | None = None

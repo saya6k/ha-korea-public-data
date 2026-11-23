@@ -535,7 +535,11 @@
       }
     },
     "error": {
-      "no_selection": "Select one."
+      "no_selection": "Select one.",
+      "cannot_connect": "Cannot connect.",
+      "invalid_auth": "Invalid credentials.",
+      "unknown": "Unexpected error.",
+      "no_bill_data": "No bill was found for this customer number and name."
     }
   },
   "entity": {
