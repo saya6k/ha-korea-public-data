@@ -1041,8 +1041,18 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_earthquake(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        from .earthquake.api import fetch_earthquakes
+        from .exceptions import KrApiError, KrAuthError
         errors: dict[str, str] = {}
         if user_input is not None:
+            try:
+                await fetch_earthquakes(
+                    async_get_clientsession(self.hass), user_input["api_key"], count=1)
+            except KrAuthError:
+                errors["base"] = "invalid_auth"
+            except (aiohttp.ClientError, TimeoutError, KrApiError):
+                errors["base"] = "cannot_connect"
+        if user_input is not None and not errors:
             loc = user_input["location"]
             return self.async_create_entry(title="지진 정보",
                 data={CONF_ENTRY_TYPE: ENTRY_EARTHQUAKE,
