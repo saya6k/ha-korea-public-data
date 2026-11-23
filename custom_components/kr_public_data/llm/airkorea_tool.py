@@ -1,14 +1,16 @@
 """AirKorea air quality LLM tool."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 
-from custom_components.kr_public_data.airkorea import STAG_GRADES, UV_GRADES
+from custom_components.kr_public_data.airkorea import STAG_GRADES, UV_GRADES, living_index_now
 from custom_components.kr_public_data.const import ENTRY_AIRKOREA
+from custom_components.kr_public_data.utils import KST
 
 from .base_tool import BaseKRTool
 from .render import svg_table
@@ -76,9 +78,10 @@ class GetAirQualityTool(BaseKRTool):
         uv_all: dict[str, Any] = coord.data.get("uv") or {}
         stag_all: dict[str, Any] = coord.data.get("stagnation") or {}
 
-        def _now(index: dict[str, Any] | None) -> Any:
-            index = index or {}
-            return index.get("h0") or index.get("today")
+        now = datetime.now(KST)
+
+        def _now(index: dict[str, Any] | None) -> int | None:
+            return living_index_now(index or {}, now)
 
         stations_out: list[dict[str, Any]] = []
         for name, data in station_iter:
