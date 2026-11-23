@@ -256,30 +256,9 @@ def _stag_grade(val: int | None) -> str | None:
     return "매우높음"
 
 def _get_current_index_value(data: dict) -> int | None:
-    """Get current value from living index API response.
-    The API returns h0~h24 (or h3,h6,...h78) fields for 3-hour forecasts."""
-    if not data:
-        return None
-    now = datetime.now(KST)
-    h = (now.hour // 3) * 3
-    # Try multiple field name patterns
-    for field in [f"h{h}", f"h{h:02d}", "h0", "today"]:
-        val = data.get(field)
-        if val is not None and str(val).strip() and str(val).strip() != "0":
-            try:
-                return int(val)
-            except (ValueError, TypeError):
-                continue
-    # Try any h* field that has a value
-    for key in sorted(data.keys()):
-        if key.startswith("h") and key[1:].isdigit():
-            val = data.get(key)
-            if val is not None and str(val).strip():
-                try:
-                    return int(val)
-                except (ValueError, TypeError):
-                    continue
-    return None
+    """Current value of a living-index response (see living_index_now)."""
+    from . import living_index_now
+    return living_index_now(data, datetime.now(KST))
 
 
 def _get_all_hourly_values(data: dict) -> dict:

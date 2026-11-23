@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.helpers import llm
 
 from custom_components.kr_public_data.airkorea import coordinator as coord_mod
+from custom_components.kr_public_data.airkorea import living_index_now
 from custom_components.kr_public_data.airkorea.coordinator import AirKoreaCoordinator
 from custom_components.kr_public_data.airkorea.sensor import UVIndexSensor
 from custom_components.kr_public_data.llm.airkorea_tool import GetAirQualityTool
+from custom_components.kr_public_data.utils import KST
 
 
 def _fetch(stations, sido="서울"):
@@ -65,5 +68,45 @@ def test_tool_summarises_only_a_shared_uv_value():
 
     both = call()
     assert both["uv_index"] is None
-    assert {s["station"]: s["uv_index"] for s in both["stations"]} == {"종로구": "3", "광복동": "8"}
-    assert call(station_name="광복동")["uv_index"] == "8"
+    assert {s["station"]: s["uv_index"] for s in both["stations"]} == {"종로구": 3, "광복동": 8}
+    assert call(station_name="광복동")["uv_index"] == 8
+
+
+# Live responses for 서울 (1100000000), 18시 bulletin of 2026-11-23.
+_UV = {"date": "2026112318", "h0": "0", "h3": "0", "h6": "0", "h9": "0", "h12": "0",
+       "h15": "2", "h18": "2", "h21": "1", "h24": "0", "h27": "0", "h30": "0", "h33": "0",
+       "h36": "0", "h39": "1", "h42": "2", "h45": "1", "h48": "0", "h51": "0", "h54": "0",
+       "h57": "0", "h60": "0", "h63": "0", "h66": "1", "h69": "1", "h72": "1", "h75": "0"}
+_STAG = {"date": "2026112318", "h3": "50", "h6": "50", "h9": "50", "h12": "50", "h15": "25",
+         "h18": "25", "h21": "25", "h24": "25", "h27": "50"}
+
+
+def _at(day, hour, minute=0):
+    return datetime(2026, 11, day, hour, minute, tzinfo=KST)
+
+
+def test_living_index_slot_counts_from_issue_time():
+    # 23시: 5h after issue → h3. By hour-of-day it used to read h21 (tomorrow 15시).
+    assert living_index_now(_UV, _at(23, 23)) == 0
+    # Next day 09:00 / 12:30 → h15 / h18.
+    assert living_index_now(_UV, _at(24, 9)) == 2
+    assert living_index_now(_UV, _at(24, 12, 30)) == 2
+    # Next day 15:00 → h21.
+    assert living_index_now(_UV, _at(24, 15)) == 1
+
+
+def test_living_index_zero_is_a_value():
+    # UV 0 at night used to be skipped as "missing".
+    assert living_index_now(_UV, _at(24, 2)) == 0
+
+
+def test_living_index_without_h0_uses_first_later_slot():
+    # 대기정체 has no h0: right at issue time, h3 applies.
+    assert living_index_now(_STAG, _at(23, 18, 10)) == 50
+    assert living_index_now(_STAG, _at(24, 10)) == 25
+
+
+def test_living_index_edge_cases():
+    assert living_index_now({}, _at(23, 23)) is None
+    assert living_index_now({"h0": "4"}, _at(23, 23)) == 4  # no date → from h0
+    assert living_index_now(_STAG, _at(30, 0)) is None  # bulletin long expired

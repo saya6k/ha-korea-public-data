@@ -1,5 +1,7 @@
 """AirKorea (에어코리아) sub-module."""
-from custom_components.kr_public_data.utils import sido_short_name
+from datetime import datetime
+
+from custom_components.kr_public_data.utils import KST, sido_short_name
 
 # 대기오염정보 조회 서비스 (15073861) - v1
 STATION_URL = "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstnList"
@@ -23,6 +25,35 @@ SIDO_AREA_CODE = {
 
 UV_GRADES = [(3, "낮음"), (6, "보통"), (8, "높음"), (11, "매우높음"), (999, "위험")]
 STAG_GRADES = [(25, "낮음"), (50, "보통"), (75, "높음"), (999, "매우높음")]
+
+
+
+def living_index_now(data: dict, now: datetime) -> int | None:
+    """Value of a 생활기상지수 response (UV, 대기정체) for the slot holding ``now``.
+
+    Fields count hours from the bulletin's issue time (``date``, YYYYMMDDHH
+    KST — 06 or 18), not hours of the day: the 18시 bulletin's ``h18`` is
+    noon the next day. Not every index has ``h0`` (대기정체 starts at
+    ``h3``), so take the first slot at or after now. "0" is a real value
+    (UV at night).
+    """
+    if not data:
+        return None
+    try:
+        issued = datetime.strptime(str(data.get("date", "")), "%Y%m%d%H").replace(tzinfo=KST)
+        offset = max(int((now - issued).total_seconds() // 3600) // 3 * 3, 0)
+    except ValueError:
+        offset = 0
+    slots = sorted(int(k[1:]) for k, v in data.items()
+                   if k[:1] == "h" and k[1:].isdigit() and str(v).strip())
+    for slot in slots:
+        if slot >= offset:
+            try:
+                return int(data[f"h{slot}"])
+            except (ValueError, TypeError):
+                continue
+    return None
+
 
 # 전남광주통합특별시 주소에서 광주(옛 광역시) 몫을 가려내는 자치구 — 전남에는 '구'가 없다.
 _GWANGJU_GU = {"동구", "서구", "남구", "북구", "광산구"}
