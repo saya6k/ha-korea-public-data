@@ -533,6 +533,9 @@
           "location_sensors": "Creates one location sensor per pharmacy within the radius below - this can add a large number of entities."
         }
       }
+    },
+    "error": {
+      "no_selection": "Select one."
     }
   },
   "entity": {

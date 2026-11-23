@@ -1908,6 +1908,16 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
                 codes = user_input.pop("area_codes")
                 user_input["regions"] = [
                     {"code": c, "name": SAFETY_ALERT_REGIONS.get(c, c)} for c in codes]
+            if etype == ENTRY_FUEL and "sido_codes" in user_input:
+                # 레거시(subentry 없는) 엔트리: setup은 configs만 읽는다.
+                sidos = user_input.pop("sido_codes")
+                fuels = user_input.pop("fuel_codes", [])
+                if not sidos or not fuels:
+                    return self.async_show_form(
+                        step_id="init", data_schema=await self._build_schema(etype),
+                        errors={"base": "no_selection"})
+                user_input["configs"] = [{"sido_code": s, "fuel_code": f}
+                                         for s in sidos for f in fuels]
             # Merge new options into data
             new_data = {**self._entry.data, **user_input}
             self.hass.config_entries.async_update_entry(self._entry, data=new_data)
@@ -2003,8 +2013,11 @@ class KRPublicDataOptionsFlow(config_entries.OptionsFlow):
             from .fuel import FUEL_TYPES, SIDO_CODES
             sido_opts = [SelectOptionDict(value=k, label=v) for k, v in SIDO_CODES.items()]
             fuel_opts = [SelectOptionDict(value=k, label=v) for k, v in FUEL_TYPES.items()]
-            cur_sidos = list(set(c["sido_code"] for c in d.get("configs", [])))
-            cur_fuels = list(set(c["fuel_code"] for c in d.get("configs", [])))
+            configs = d.get("configs") or (
+                [{"sido_code": d["sido_code"], "fuel_code": d["fuel_code"]}]
+                if "sido_code" in d else [])
+            cur_sidos = list(set(c["sido_code"] for c in configs))
+            cur_fuels = list(set(c["fuel_code"] for c in configs))
             return vol.Schema({
                 vol.Required("opinet_api_key",
                              default=d.get("opinet_api_key") or d.get("api_key", "")):
