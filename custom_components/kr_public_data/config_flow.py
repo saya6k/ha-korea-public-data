@@ -318,6 +318,17 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
 
+    def _abort_if_key_configured(self, etype: str, field: str, key: str,
+                                 legacy_field: str | None = None) -> None:
+        """Abort when an entry of ``etype`` already uses this API key.
+
+        Extra locations go in as subentries (or options) of that entry.
+        ``legacy_field`` also catches entries saved before a field rename.
+        """
+        self._async_abort_entries_match({CONF_ENTRY_TYPE: etype, field: key})
+        if legacy_field:
+            self._async_abort_entries_match({CONF_ENTRY_TYPE: etype, legacy_field: key})
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="user",
@@ -340,6 +351,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ]
         if user_input is not None:
             api_key = user_input["api_key"]
+            self._abort_if_key_configured(ENTRY_WEATHER, "api_key", api_key)
             areas = user_input.get("area_codes", [])
             if not isinstance(areas, list):
                 areas = [areas]
@@ -377,6 +389,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             seoul_key = user_input["seoul_api_key"]
+            self._abort_if_key_configured(ENTRY_TRANSIT, "seoul_api_key", seoul_key)
             if await validate_seoul_api(async_get_clientsession(self.hass), seoul_key):
                 self._data = {
                     CONF_ENTRY_TYPE: ENTRY_TRANSIT,
@@ -448,6 +461,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             api_key = user_input["api_key"]
+            self._abort_if_key_configured(ENTRY_BUS, "api_key", api_key, "service_key")
             session = async_get_clientsession(self.hass)
             if await validate_bus_api(session, api_key):
                 self._data = {
@@ -571,6 +585,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             api_key = user_input["opinet_api_key"]
+            self._abort_if_key_configured(ENTRY_FUEL, "opinet_api_key", api_key, "api_key")
             sidos = user_input.get("sido_codes", [])
             fuels = user_input.get("fuel_codes", [])
             if not isinstance(sidos, list):
@@ -612,6 +627,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             api_key = user_input["neis_api_key"]
+            self._abort_if_key_configured(ENTRY_SCHOOL, "neis_api_key", api_key, "api_key")
             self._data = {CONF_ENTRY_TYPE: ENTRY_SCHOOL,
                           "neis_api_key": api_key,
                           "school_level": user_input["school_level"]}
@@ -727,6 +743,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             api_key = user_input["safety_api_key"]
+            self._abort_if_key_configured(ENTRY_DISASTER, "safety_api_key", api_key, "api_key")
             if not await validate_disaster_api(api_key):
                 errors["base"] = "cannot_connect"
             else:
@@ -790,6 +807,8 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "no_selection"
             else:
                 region_items = [{"code": c, "name": SAFETY_ALERT_REGIONS.get(c, c)} for c in areas]
+                self._async_abort_entries_match(
+                    {CONF_ENTRY_TYPE: ENTRY_SAFETY_ALERT, "regions": region_items})
                 return self.async_create_entry(
                     title="안전알림",
                     data={CONF_ENTRY_TYPE: ENTRY_SAFETY_ALERT, "regions": region_items})
@@ -874,6 +893,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 1: API key + 광역자치단체 선택."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_key_configured(ENTRY_PHARMACY, "api_key", user_input["api_key"])
             self._data = {CONF_ENTRY_TYPE: ENTRY_PHARMACY,
                           "api_key": user_input["api_key"],
                           "q0": user_input["q0"]}
@@ -938,6 +958,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         air_sido = list(STATIONS_BY_SIDO.keys())
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_key_configured(ENTRY_AIRKOREA, "api_key", user_input["api_key"])
             self._data = {CONF_ENTRY_TYPE: ENTRY_AIRKOREA,
                           "api_key": user_input["api_key"],
                           "living_api_key": user_input.get("living_api_key", "")}
@@ -984,6 +1005,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         from .kma_weather import SIDO_LIST
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_key_configured(ENTRY_KMA_WEATHER, "api_key", user_input["api_key"])
             self._data = {CONF_ENTRY_TYPE: ENTRY_KMA_WEATHER,
                           "api_key": user_input["api_key"]}
             self._kma_sido = user_input["sido"]
@@ -1043,6 +1065,7 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._abort_if_key_configured(ENTRY_EARTHQUAKE, "api_key", user_input["api_key"])
             loc = user_input["location"]
             return self.async_create_entry(title="지진 정보",
                 data={CONF_ENTRY_TYPE: ENTRY_EARTHQUAKE,
