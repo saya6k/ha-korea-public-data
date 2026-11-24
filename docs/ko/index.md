@@ -26,11 +26,12 @@
 
 ## 설치 (HACS)
 
-1. HACS → Integrations → ⋮ → **Custom repositories** — 이 repo URL을 카테고리 **Integration**으로 추가
-2. **한국 공공데이터** 설치
-3. Home Assistant 재시작
-4. 설정 → 기기 및 서비스 → **통합 추가** → "한국 공공데이터" (또는 "Korean Public Data") 검색
-5. 메뉴에서 서비스를 선택하고 API 키 / 지역 입력
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=saya6k&repository=ha-korea-public-data&category=integration)
+
+1. HACS에서 **Korean Public Data** 검색 후 설치
+2. Home Assistant 재시작
+3. 설정 → 기기 및 서비스 → **통합 추가** → "한국 공공데이터" (또는 "Korean Public Data") 검색
+4. 메뉴에서 서비스를 선택하고 API 키 / 지역 입력
 
 각 서비스는 별도로 추가합니다. **통합 추가**를 반복해 더 추가하세요.
 

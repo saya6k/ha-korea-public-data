@@ -36,11 +36,10 @@ Configure each service independently from the same integration — every service
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=saya6k&repository=ha-korea-public-data&category=integration)
 
-1. HACS → Integrations → ⋮ → **Custom repositories** — add this repo URL with category **Integration**.
-2. Install **한국 공공데이터**.
-3. Restart Home Assistant.
-4. Settings → Devices & Services → **Add integration** → search "한국 공공데이터" (or "Korean Public Data").
-5. Pick a service from the menu and provide its API key / region.
+1. In HACS, search for **Korean Public Data** and install it.
+2. Restart Home Assistant.
+3. Settings → Devices & Services → **Add integration** → search "한국 공공데이터" (or "Korean Public Data").
+4. Pick a service from the menu and provide its API key / region.
 
 Each service is added separately. Repeat **Add integration** to add more.
 
