@@ -752,6 +752,18 @@
       "air_pm25": {
         "name": "PM2.5 particulates"
       },
+      "air_pm10_grade_today": {
+        "name": "PM10 forecast grade (today)"
+      },
+      "air_pm10_grade_tomorrow": {
+        "name": "PM10 forecast grade (tomorrow)"
+      },
+      "air_pm25_grade_today": {
+        "name": "PM2.5 forecast grade (today)"
+      },
+      "air_pm25_grade_tomorrow": {
+        "name": "PM2.5 forecast grade (tomorrow)"
+      },
       "air_so2": {
         "name": "SO₂ sulfur dioxide"
       },

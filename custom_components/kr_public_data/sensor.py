@@ -184,26 +184,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     elif etype == ENTRY_AIRKOREA:
         from .airkorea.sensor import (
             POLLUTANTS,
+            AirForecastGradeSensor,
             AirQualitySensor,
             AirStagnationSensor,
             UVIndexSensor,
         )
         c = store["coordinator"]
 
-        def _station_sensors(name: str) -> list[Entity]:
+        def _station_sensors(name: str, sido: str = "", addr: str = "") -> list[Entity]:
             sensors: list[Entity] = [AirQualitySensor(c, name, field, tkey, unit)
                                      for field, tkey, unit in POLLUTANTS]
             # Living index sensors per station (same data, different device)
             sensors += [UVIndexSensor(c, name), AirStagnationSensor(c, name)]
+            # Official daily forecast grades from the bulletin (no extra API calls)
+            sensors += [AirForecastGradeSensor(c, name, sido, code, offset, addr)
+                        for code in ("PM10", "PM25") for offset in (0, 1)]
             return sensors
 
         station_subs = store.get("station_subs") or {}
         for sub_id, st in station_subs.items():
-            async_add_entities(_station_sensors(st["stationName"]),
+            async_add_entities(_station_sensors(st["stationName"], st.get("sido", ""),
+                                                st.get("addr", "")),
                                config_subentry_id=sub_id)
         if not station_subs:
+            default_sido = entry.data.get("sido", "서울")
             for st in store.get("stations", []):
-                entities += _station_sensors(st["stationName"])
+                entities += _station_sensors(
+                    st["stationName"], st.get("sido", "") or default_sido,
+                    st.get("addr", ""))
 
     elif etype == ENTRY_BUS:
         from .bus.device import (

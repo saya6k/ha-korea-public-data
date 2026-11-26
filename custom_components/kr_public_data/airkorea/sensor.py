@@ -15,6 +15,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from custom_components.kr_public_data.const import DOMAIN
 from custom_components.kr_public_data.utils import KST
 
+from . import station_forecast_grade
+
 if TYPE_CHECKING:
     from .coordinator import AirKoreaCoordinator
 
@@ -326,4 +328,43 @@ class AirStagnationSensor(CoordinatorEntity, SensorEntity):
         val = self.native_value
         attrs = {"grade": _stag_grade(val)}
         attrs.update(_get_all_hourly_values(stag))
+        return attrs
+
+
+class AirForecastGradeSensor(CoordinatorEntity, SensorEntity):
+    """공식 대기질 예보의 일별 등급을 시도별로 보여주는 센서."""
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(  # noqa: PLR0913, PLR0917  예보 해석에 시도·주소·물질·날짜 인자가 각각 필요하다
+            self, coordinator: AirKoreaCoordinator, station_name: str, sido: str,
+            inform_code: str, day_offset: int, addr: str = "") -> None:
+        super().__init__(coordinator)
+        self._sido = sido
+        self._addr = addr
+        self._inform_code = inform_code
+        self._day_offset = day_offset
+        day = "today" if day_offset == 0 else "tomorrow"
+        self._attr_unique_id = (
+            f"{DOMAIN}_air_{station_name}_{inform_code.lower()}_grade_{day}")
+        self._attr_translation_key = f"air_{inform_code.lower()}_grade_{day}"
+        self._attr_device_info = air_device(station_name)
+
+    @property
+    def _target_date(self) -> str:
+        return (datetime.now(KST) + timedelta(days=self._day_offset)).strftime("%Y-%m-%d")
+
+    def _evaluate(self) -> tuple[str | None, dict[str, Any]]:
+        forecasts = (self.coordinator.data or {}).get("forecast", [])
+        return station_forecast_grade(
+            forecasts, self._sido, self._inform_code, self._target_date, self._addr)
+
+    @property
+    def native_value(self) -> str | None:
+        grade, _attrs = self._evaluate()
+        return grade
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        _grade, attrs = self._evaluate()
         return attrs

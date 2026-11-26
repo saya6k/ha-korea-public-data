@@ -752,6 +752,18 @@
       "air_pm25": {
         "name": "PM2.5 초미세먼지"
       },
+      "air_pm10_grade_today": {
+        "name": "PM10 미세먼지 예보 등급(오늘)"
+      },
+      "air_pm10_grade_tomorrow": {
+        "name": "PM10 미세먼지 예보 등급(내일)"
+      },
+      "air_pm25_grade_today": {
+        "name": "PM2.5 초미세먼지 예보 등급(오늘)"
+      },
+      "air_pm25_grade_tomorrow": {
+        "name": "PM2.5 초미세먼지 예보 등급(내일)"
+      },
       "air_so2": {
         "name": "SO₂ 아황산가스"
       },

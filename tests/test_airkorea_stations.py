@@ -47,15 +47,19 @@ def test_builtin_table_is_unambiguous():
 
 
 def test_flow_uses_live_list_when_available():
-    live = {"서울": ["종로구"]}
+    items = [{"stationName": "종로구", "addr": "서울 종로구"}]
     with patch.object(config_flow, "async_get_clientsession"), patch(
-            "custom_components.kr_public_data.airkorea.api.fetch_stations_by_sido",
-            AsyncMock(return_value=live)):
-        assert asyncio.run(config_flow._air_stations_by_sido(None, "k")) is live
+            "custom_components.kr_public_data.airkorea.api.fetch_station_items",
+            AsyncMock(return_value=items)):
+        grouped, addr_map = asyncio.run(config_flow._air_station_data(None, "k"))
+    assert grouped == {"서울": ["종로구"]}
+    assert addr_map == {"종로구": "서울 종로구"}
 
 
 def test_flow_falls_back_when_station_api_is_not_subscribed():
     with patch.object(config_flow, "async_get_clientsession"), patch(
-            "custom_components.kr_public_data.airkorea.api.fetch_stations_by_sido",
+            "custom_components.kr_public_data.airkorea.api.fetch_station_items",
             AsyncMock(side_effect=KrAuthError("SERVICE_KEY_IS_NOT_REGISTERED_ERROR"))):
-        assert asyncio.run(config_flow._air_stations_by_sido(None, "k")) is STATIONS_BY_SIDO
+        grouped, addr_map = asyncio.run(config_flow._air_station_data(None, "k"))
+    assert grouped is STATIONS_BY_SIDO
+    assert addr_map == {}

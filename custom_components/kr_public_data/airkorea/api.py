@@ -20,14 +20,14 @@ from . import FORECAST_URL, REALTIME_URL, STATION_URL, group_stations
 _LOGGER = logging.getLogger(__name__)
 
 
-async def fetch_stations_by_sido(
+async def fetch_station_items(
     session: aiohttp.ClientSession, api_key: str
-) -> dict[str, list[str]]:
-    """전국 측정소 목록(측정소정보 API) → {시도 축약명: 측정소명 목록}.
+) -> list[dict]:
+    """전국 측정소 원본 항목(stationName·addr 등).
 
     addr 파라미터는 부분 문자열 검색이라('광주'가 경기 광주시까지 잡음) 전체를
     한 번에 받아 주소로 분류한다. 이 API는 대기오염정보와 별도 활용신청이
-    필요하므로, 실패하면 예외를 던져 호출자가 STATIONS_BY_SIDO로 폴백하게 한다.
+    필요하므로, 실패하면 예외를 던져 호출자가 폴백하게 한다.
     """
     params = {"serviceKey": api_key, "returnType": "json",
               "numOfRows": "1000", "pageNo": "1"}
@@ -50,7 +50,14 @@ async def fetch_stations_by_sido(
     items = data.get("response", {}).get("body", {}).get("items", [])
     if isinstance(items, dict):
         items = [items]
-    grouped = group_stations(items)
+    return items
+
+
+async def fetch_stations_by_sido(
+    session: aiohttp.ClientSession, api_key: str
+) -> dict[str, list[str]]:
+    """전국 측정소 목록(측정소정보 API) → {시도 축약명: 측정소명 목록}."""
+    grouped = group_stations(await fetch_station_items(session, api_key))
     if not grouped:
         raise KrTransientError("AirKorea station list: no stations")
     return grouped

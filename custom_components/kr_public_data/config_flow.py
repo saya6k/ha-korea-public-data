@@ -116,16 +116,28 @@ def _sido_selector() -> SelectSelector:
                                                mode=SelectSelectorMode.DROPDOWN))
 
 
-async def _air_stations_by_sido(hass: HomeAssistant, api_key: str) -> dict[str, list[str]]:
-    """실시간 측정소 목록; 측정소정보 API를 못 쓰면(미신청 등) 내장 스냅샷."""
-    from .airkorea import STATIONS_BY_SIDO
-    from .airkorea.api import fetch_stations_by_sido
+async def _air_station_data(
+        hass: HomeAssistant, api_key: str) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """(시도별 측정소명 목록, 측정소명→주소). 목록을 못 쓰면 내장 스냅샷(주소 없음)."""
+    from .airkorea import STATIONS_BY_SIDO, group_stations
+    from .airkorea.api import fetch_station_items
     from .exceptions import KrApiError
     try:
-        return await fetch_stations_by_sido(async_get_clientsession(hass), api_key)
+        items = await fetch_station_items(async_get_clientsession(hass), api_key)
     except (aiohttp.ClientError, TimeoutError, KrApiError) as err:
         _LOGGER.debug("AirKorea station list unavailable, using built-in list: %s", err)
-        return STATIONS_BY_SIDO
+        return STATIONS_BY_SIDO, {}
+    grouped = group_stations(items)
+    if not grouped:
+        return STATIONS_BY_SIDO, {}
+    addr_map = {it["stationName"]: it.get("addr", "")
+                for it in items if it.get("stationName")}
+    return grouped, addr_map
+
+
+async def _air_stations_by_sido(hass: HomeAssistant, api_key: str) -> dict[str, list[str]]:
+    """실시간 측정소 목록; 측정소정보 API를 못 쓰면(미신청 등) 내장 스냅샷."""
+    return (await _air_station_data(hass, api_key))[0]
 
 
 def _password_selector() -> TextSelector:
@@ -1061,16 +1073,19 @@ class KRPublicDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             selected = user_input.get("stations", [])
             self._data["sido"] = self._air_sido
+            addr_map = getattr(self, "_air_addr_map", {}) or {}
             return self.async_create_entry(
                 title="에어코리아", data=self._data,
                 subentries=[
                     {"subentry_type": "station",
                      "title": f"{self._air_sido} {s}",
-                     "data": {"sido": self._air_sido, "stationName": s},
+                     "data": {"sido": self._air_sido, "stationName": s,
+                              "addr": addr_map.get(s, "")},
                      "unique_id": f"{self._air_sido}_{s}"}
                     for s in selected
                 ])
-        stations = await _air_stations_by_sido(self.hass, self._data["api_key"])
+        stations, self._air_addr_map = await _air_station_data(
+            self.hass, self._data["api_key"])
         station_list = stations.get(self._air_sido, [])
         labels = {s: s for s in station_list}
         return self.async_show_form(step_id="airkorea_select", data_schema=vol.Schema({
@@ -1442,6 +1457,7 @@ class StationSubentryFlowHandler(config_entries.ConfigSubentryFlow):
 
     def __init__(self) -> None:
         self._sido = ""
+        self._addr_map: dict[str, str] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         from .airkorea import STATIONS_BY_SIDO
@@ -1466,9 +1482,11 @@ class StationSubentryFlowHandler(config_entries.ConfigSubentryFlow):
                     return self.async_abort(reason="already_configured")
             return self.async_create_entry(
                 title=f"{self._sido} {station}",
-                data={"sido": self._sido, "stationName": station},
+                data={"sido": self._sido, "stationName": station,
+                      "addr": self._addr_map.get(station, "")},
                 unique_id=f"{self._sido}_{station}")
-        stations = await _air_stations_by_sido(self.hass, self._get_entry().data["api_key"])
+        stations, self._addr_map = await _air_station_data(
+            self.hass, self._get_entry().data["api_key"])
         station_opts = [SelectOptionDict(value=s, label=s)
                         for s in stations.get(self._sido, [])]
         return self.async_show_form(step_id="station", data_schema=vol.Schema({

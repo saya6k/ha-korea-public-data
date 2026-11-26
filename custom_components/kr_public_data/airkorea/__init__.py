@@ -1,4 +1,5 @@
 """AirKorea (에어코리아) sub-module."""
+import re
 from datetime import datetime
 
 from custom_components.kr_public_data.utils import KST, sido_short_name
@@ -26,6 +27,104 @@ SIDO_AREA_CODE = {
 UV_GRADES = [(3, "낮음"), (6, "보통"), (8, "높음"), (11, "매우높음"), (999, "위험")]
 STAG_GRADES = [(25, "낮음"), (50, "보통"), (75, "높음"), (999, "매우높음")]
 
+_DATA_TIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})\s+(\d{1,2})")
+
+# AirKorea 대기질 예보는 권역 단위로 발표한다: 경기는 남부/북부, 강원은 영동/영서,
+# 그 외 시도는 분할 없음(공식 FAQ). 권역 나열 순서가 주소를 못 쓸 때의 기본 선택 순서이고,
+# 시군 목록은 측정소 주소로 권역을 가리는 데 쓴다. 전체 등급은 all_regions로 노출한다.
+# https://www.airkorea.or.kr/web/board/5/1171/?pMENU_NO=21
+BULLETIN_SUBREGIONS = {
+    "경기": {
+        "경기남부": ("과천시", "광명시", "광주시", "군포시", "부천시", "성남시",
+                   "수원시", "시흥시", "안산시", "안성시", "안양시", "양평군",
+                   "오산시", "용인시", "의왕시", "이천시", "여주시", "평택시",
+                   "하남시", "화성시"),
+        "경기북부": ("가평군", "고양시", "구리시", "김포시", "남양주시", "양주시",
+                   "연천군", "동두천시", "의정부시", "파주시", "포천시"),
+    },
+    "강원": {
+        "영동": ("고성군", "속초시", "양양군", "강릉시", "동해시", "삼척시", "태백시"),
+        "영서": ("양구군", "인제군", "홍천군", "평창군", "정선군", "철원군",
+                "화천군", "춘천시", "횡성군", "원주시", "영월군"),
+    },
+}
+
+
+def forecast_region_grades(item: dict) -> dict[str, str]:
+    """미세먼지 예보 항목의 informGrade를 {지역: 등급}으로 파싱한다."""
+    grades: dict[str, str] = {}
+    for raw_pair in (item.get("informGrade", "") or "").split(","):
+        pair = raw_pair.strip()
+        if " : " not in pair:
+            continue
+        region, grade = pair.split(" : ", 1)
+        grade = grade.strip()
+        if not grade:
+            continue
+        grades[region.strip()] = grade
+    return grades
+
+
+def select_forecast_item(
+    forecasts: list[dict], inform_code: str, target_date: str
+) -> dict | None:
+    """해당 오염물질/날짜의 예보 중 가장 최근 발표(시각 기준)를 고른다."""
+    matches = [fc for fc in forecasts
+               if fc.get("informCode") == inform_code
+               and fc.get("informData") == target_date]
+    if not matches:
+        return None
+
+    def bulletin_key(fc: dict) -> tuple[str, int]:
+        m = _DATA_TIME_RE.search(str(fc.get("dataTime", "") or ""))
+        return (m.group(1), int(m.group(2))) if m else ("", -1)
+
+    return max(matches, key=bulletin_key)
+
+
+def _addr_bulletin_region(sido: str, addr: str) -> str:
+    """측정소 주소의 시군명으로 예보 권역을 가린다. 못 가리면 빈 문자열."""
+    if not addr or station_sido(addr) != sido:
+        return ""
+    for part in addr.split()[1:]:
+        for name, cities in BULLETIN_SUBREGIONS.get(sido, {}).items():
+            if part in cities:
+                return name
+    return ""
+
+
+def station_forecast_grade(
+    forecasts: list[dict], sido: str, inform_code: str, target_date: str,
+    addr: str = "",
+) -> tuple[str | None, dict]:
+    """측정소 소속 시도의 예보 등급과 근거 속성을 반환한다."""
+    empty_attrs: dict = {"region": "", "all_regions": {}, "data_time": "", "inform_cause": "",
+                         "inform_overall": ""}
+    item = select_forecast_item(forecasts, inform_code, target_date)
+    if item is None:
+        return None, empty_attrs
+
+    grades = forecast_region_grades(item)
+    # 공보의 정확한 시도명 > 주소의 시군으로 가린 권역 > 표 나열 순서의 첫 권역 >
+    # substring 폴백. 선택 권역 외 등급은 all_regions 속성으로 확인할 수 있다.
+    if sido in grades:
+        region = sido
+    else:
+        region = _addr_bulletin_region(sido, addr)
+        region = region or next(
+            (name for name in BULLETIN_SUBREGIONS.get(sido, ()) if name in grades), "")
+        region = region or next((r for r in grades if sido and sido in r), "")
+    if not region:
+        return None, empty_attrs
+
+    known = BULLETIN_SUBREGIONS.get(sido, ())
+    return grades[region], {
+        "region": region,
+        "all_regions": {r: g for r, g in grades.items() if r in known or sido in r},
+        "data_time": item.get("dataTime", "") or "",
+        "inform_cause": item.get("informCause", "") or "",
+        "inform_overall": item.get("informOverall", "") or "",
+    }
 
 
 def living_index_now(data: dict, now: datetime) -> int | None:
