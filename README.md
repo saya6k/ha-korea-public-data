@@ -32,20 +32,25 @@ Configure each service independently from the same integration — every service
 | `kma_weather`    | 기상청 동네예보                                      | weather                                    |
 | `earthquake`     | 기상청 지진                                          | event                                      |
 
+<!-- ha-marketplace:exclude-start -->
 ## Installation (HACS)
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=saya6k&repository=ha-korea-public-data&category=integration)
 
 1. In HACS, search for **Korean Public Data** and install it.
 2. Restart Home Assistant.
-3. Settings → Devices & Services → **Add integration** → search "한국 공공데이터" (or "Korean Public Data").
-4. Pick a service from the menu and provide its API key / region.
-
-Each service is added separately. Repeat **Add integration** to add more.
 
 ## Manual installation
 
 Copy `custom_components/kr_public_data/` into your HA config's `custom_components/` folder and restart.
+<!-- ha-marketplace:exclude-end -->
+
+## Setup
+
+1. Settings → Devices & Services → **Add integration** → search "한국 공공데이터" (or "Korean Public Data").
+2. Pick a service from the menu and provide its API key / region.
+
+Each service is added separately. Repeat **Add integration** to add more.
 
 ## API keys
 
@@ -93,6 +98,7 @@ Pick the API in **Settings → Voice assistants → [your agent] → LLM API** (
 
 The result schema follows [voice-satellite-card-llm-tools](https://github.com/jxlarrea/voice-satellite-card-llm-tools), so the [voice-satellite card](https://github.com/jxlarrea/voice-satellite-card-integration) automatically renders the visual panels (weather card for `kma_weather`; SVG tables / cards for everything else via `featured_image` and `results[]`). Plain conversation agents still get the structured JSON for narration.
 
+<!-- ha-marketplace:exclude-start -->
 ## Development
 
 A devcontainer is provided for testing against a real Home Assistant install. Open the folder in VS Code with the Dev Containers extension and run:
@@ -102,6 +108,7 @@ scripts/develop
 ```
 
 HA binds the standard port 8123 inside the container. The container's hostname is set to `kr-public-data-dev` so it's distinguishable from any production HA instance you run on the host network. VS Code forwards 8123 to the host (and auto-picks a different host port if 8123 is already taken there).
+<!-- ha-marketplace:exclude-end -->
 
 ## License
 
